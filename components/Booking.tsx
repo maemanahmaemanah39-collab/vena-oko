@@ -298,14 +298,15 @@ const Booking: React.FC<BookingProps> = ({ leads, clients, projects, setProjects
         }
     }, [activeStatModal, allBookings, newBookings, mostPopularPackage]);
 
-    const handleStatusChange = (projectId: string, newStatus: BookingStatus) => {
-        setProjects(prev => prev.map(p => {
-            if (p.id === projectId) {
-                return { ...p, bookingStatus: newStatus };
-            }
-            return p;
-        }));
-        showNotification(`Booking berhasil ${newStatus === BookingStatus.TERKONFIRMASI ? 'dikonfirmasi' : 'ditolak'}.`);
+    const handleStatusChange = async (projectId: string, newStatus: BookingStatus) => {
+        try {
+            const updatedProject = await SupabaseService.updateProject(projectId, { bookingStatus: newStatus });
+            setProjects(prev => prev.map(p => p.id === projectId ? updatedProject : p));
+            showNotification(`Booking berhasil ${newStatus === BookingStatus.TERKONFIRMASI ? 'dikonfirmasi' : 'ditolak'}.`);
+        } catch (error) {
+            console.error("Failed to update booking status:", error);
+            showNotification("Gagal memperbarui status booking.");
+        }
     };
 
     return (

@@ -56,7 +56,7 @@ const SOPManagement: React.FC<SOPProps> = ({ sops, setSops, profile, showNotific
                     ...formData,
                     lastUpdated: new Date().toISOString(),
                 };
-                const newSop = await SupabaseService.createSOP(newSopData);
+                const newSop = await SupabaseService.createSOP(newSopData, profile.adminUserId);
                 setSops(prev => [...prev, newSop].sort((a,b) => a.title.localeCompare(b.title)));
                 showNotification('SOP baru berhasil ditambahkan.');
             } else if (selectedSop) {

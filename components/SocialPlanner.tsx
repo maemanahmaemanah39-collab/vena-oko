@@ -128,9 +128,10 @@ interface SocialPlannerProps {
     setPosts: React.Dispatch<React.SetStateAction<SocialMediaPost[]>>;
     projects: Project[];
     showNotification: (message: string) => void;
+    profile: types.Profile;
 }
 
-export const SocialPlanner: React.FC<SocialPlannerProps> = ({ posts, setPosts, projects, showNotification }) => {
+export const SocialPlanner: React.FC<SocialPlannerProps> = ({ posts, setPosts, projects, showNotification, profile }) => {
     const [draggedPostId, setDraggedPostId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
@@ -225,7 +226,7 @@ export const SocialPlanner: React.FC<SocialPlannerProps> = ({ posts, setPosts, p
 
         try {
             if (modalMode === 'add') {
-                const newPost = await SupabaseService.createSocialMediaPost(postData);
+                const newPost = await SupabaseService.createSocialMediaPost(postData, profile.adminUserId);
                 setPosts(prev => [...prev, newPost]);
                 showNotification('Postingan baru berhasil ditambahkan ke draf.');
             } else if (selectedPost) {

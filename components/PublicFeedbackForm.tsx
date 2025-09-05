@@ -3,8 +3,11 @@ import { ClientFeedback, SatisfactionLevel } from '../types';
 import { StarIcon } from '../constants';
 import SupabaseService from '../lib/supabaseService';
 
+import { Profile } from '../types';
+
 interface PublicFeedbackFormProps {
     setClientFeedback: React.Dispatch<React.SetStateAction<ClientFeedback[]>>;
+    userProfile: Profile;
 }
 
 const getSatisfactionFromRating = (rating: number): SatisfactionLevel => {
@@ -14,7 +17,7 @@ const getSatisfactionFromRating = (rating: number): SatisfactionLevel => {
     return SatisfactionLevel.UNSATISFIED;
 };
 
-const PublicFeedbackForm: React.FC<PublicFeedbackFormProps> = ({ setClientFeedback }) => {
+const PublicFeedbackForm: React.FC<PublicFeedbackFormProps> = ({ setClientFeedback, userProfile }) => {
     const [formState, setFormState] = useState({
         clientName: '',
         rating: 0,
@@ -50,7 +53,7 @@ const PublicFeedbackForm: React.FC<PublicFeedbackFormProps> = ({ setClientFeedba
             };
 
             // Save to Supabase
-            const createdFeedback = await SupabaseService.createClientFeedback(newFeedbackData);
+            const createdFeedback = await SupabaseService.createClientFeedback(newFeedbackData, userProfile.adminUserId);
             
             // Update local state
             setClientFeedback(prev => [createdFeedback, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));

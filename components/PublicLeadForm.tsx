@@ -38,7 +38,7 @@ const PublicLeadForm: React.FC<PublicLeadFormProps> = ({ setLeads, userProfile, 
             };
 
             // Save to Supabase
-            const createdLead = await SupabaseService.createLead(newLeadData);
+            const createdLead = await SupabaseService.createLead(newLeadData, userProfile.adminUserId);
             
             // Update local state
             setLeads(prev => [createdLead, ...prev]);

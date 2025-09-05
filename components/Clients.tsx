@@ -871,7 +871,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, setClients, projects, setPro
                         lastContact: new Date().toISOString(),
                         portalAccessId: crypto.randomUUID(),
                     };
-                    const createdClient = await SupabaseService.createClient(newClientData);
+                    const createdClient = await SupabaseService.createClient(newClientData, userProfile.adminUserId);
                     setClients(prev => [createdClient, ...prev]);
                     clientId = createdClient.id;
                     clientForProject = createdClient;
@@ -924,7 +924,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, setClients, projects, setPro
                     printingCost: printingCostFromPackage,
                     completedDigitalItems: [],
                 };
-                const createdProject = await SupabaseService.createProject(newProjectData);
+                const createdProject = await SupabaseService.createProject(newProjectData, userProfile.adminUserId);
                 setProjects(prev => [createdProject, ...prev]);
 
             if (createdProject.amountPaid > 0) {
@@ -939,7 +939,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, setClients, projects, setPro
                         method: 'Transfer Bank',
                         cardId: formData.dpDestinationCardId,
                     };
-                    const createdTransaction = await SupabaseService.createTransaction(newTransactionData);
+                    const createdTransaction = await SupabaseService.createTransaction(newTransactionData, userProfile.adminUserId);
                     setTransactions(prev => [...prev, createdTransaction].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
                     setCards(prev => prev.map(c => c.id === formData.dpDestinationCardId ? {...c, balance: c.balance + createdProject.amountPaid} : c));
                 } catch (error) {
@@ -1032,7 +1032,7 @@ const Clients: React.FC<ClientsProps> = ({ clients, setClients, projects, setPro
                 method: 'Transfer Bank',
                 cardId: destinationCardId,
             };
-            const createdTransaction = await SupabaseService.createTransaction(newTransactionData);
+            const createdTransaction = await SupabaseService.createTransaction(newTransactionData, userProfile.adminUserId);
             setTransactions(prev => [...prev, createdTransaction].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
             setCards(prev => prev.map(c => c.id === destinationCardId ? {...c, balance: c.balance + amount} : c));
     

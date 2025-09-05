@@ -67,7 +67,7 @@ const ClientPortal: React.FC<ClientPortalProps> = ({ accessId, clients, projects
             case 'kontrak':
                  return <ContractsTab contracts={clientContracts} projects={clientProjects} onViewContract={(contract) => setViewingDocument({type: 'contract', project: clientProjects.find(p => p.id === contract.projectId)!, data: contract})} />;
             case 'umpan-balik':
-                return <FeedbackTab client={client} setClientFeedback={setClientFeedback} showNotification={showNotification} />;
+                return <FeedbackTab client={client} setClientFeedback={setClientFeedback} showNotification={showNotification} userProfile={profile} />;
             default:
                 return null;
         }
@@ -442,24 +442,37 @@ const ContractsTab: React.FC<{ contracts: Contract[], projects: Project[], onVie
 );
 
 
-const FeedbackTab: React.FC<{client: Client, setClientFeedback: any, showNotification: any}> = ({ client, setClientFeedback, showNotification }) => {
+const FeedbackTab: React.FC<{client: Client, setClientFeedback: any, showNotification: any, userProfile: Profile}> = ({ client, setClientFeedback, showNotification, userProfile }) => {
     const [rating, setRating] = useState(0);
     const [feedbackText, setFeedbackText] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (rating === 0) { alert('Mohon berikan peringkat.'); return; }
+        if (rating === 0) {
+            alert('Mohon berikan peringkat.');
+            return;
+        }
         setIsSubmitting(true);
-        const newFeedback: ClientFeedback = {
-            id: `FB-PORTAL-${Date.now()}`, clientName: client!.name, rating,
-            satisfaction: getSatisfactionFromRating(rating), feedback: feedbackText, date: new Date().toISOString(),
-        };
-        setTimeout(() => {
-            setClientFeedback((prev: ClientFeedback[]) => [newFeedback, ...prev]);
+        try {
+            const newFeedbackData: Omit<ClientFeedback, 'id'> = {
+                clientName: client!.name,
+                rating,
+                satisfaction: getSatisfactionFromRating(rating),
+                feedback: feedbackText,
+                date: new Date().toISOString(),
+            };
+            const createdFeedback = await SupabaseService.createClientFeedback(newFeedbackData, userProfile.adminUserId);
+            setClientFeedback((prev: ClientFeedback[]) => [createdFeedback, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
             showNotification('Terima kasih! Masukan Anda telah kami terima.');
-            setRating(0); setFeedbackText(''); setIsSubmitting(false);
-        }, 1000);
+            setRating(0);
+            setFeedbackText('');
+        } catch (error) {
+            console.error("Failed to submit feedback:", error);
+            showNotification("Gagal mengirim masukan. Silakan coba lagi.");
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (

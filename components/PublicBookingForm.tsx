@@ -209,7 +209,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                 lastContact: new Date().toISOString(),
                 portalAccessId: crypto.randomUUID(),
             };
-            const createdClient = await SupabaseService.createClient(newClientData);
+            const createdClient = await SupabaseService.createClient(newClientData, userProfile.adminUserId);
 
             // 2. Create Project in Supabase
             const newProjectData: Omit<Project, 'id'> = {
@@ -235,7 +235,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                 dpProofUrl: dpProofUrl || undefined,
                 transportCost: transportFee > 0 ? transportFee : undefined,
             };
-            const createdProject = await SupabaseService.createProject(newProjectData);
+            const createdProject = await SupabaseService.createProject(newProjectData, userProfile.adminUserId);
 
             // 3. Update Lead if exists
             if (leadId) {
@@ -257,7 +257,7 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                     date: new Date().toISOString(),
                     notes: `Dikonversi secara otomatis dari formulir pemesanan publik. Proyek: ${createdProject.projectName}. Klien ID: ${createdClient.id}`
                 };
-                const createdLead = await SupabaseService.createLead(newLeadData);
+                const createdLead = await SupabaseService.createLead(newLeadData, userProfile.adminUserId);
                 setLeads(prev => [createdLead, ...prev]);
             }
 
@@ -282,14 +282,14 @@ const PublicBookingForm: React.FC<PublicBookingFormProps> = ({
                     method: 'Transfer Bank', 
                     cardId: destinationCard.id,
                 };
-                const createdTransaction = await SupabaseService.createTransaction(newTransactionData);
+                const createdTransaction = await SupabaseService.createTransaction(newTransactionData, userProfile.adminUserId);
                 
                 // Update card balance
-                await SupabaseService.updateCard(destinationCard.id, { balance: destinationCard.balance + dpAmount });
+                const updatedCard = await SupabaseService.updateCard(destinationCard.id, { balance: destinationCard.balance + dpAmount });
                 
                 // Update local state
                 setTransactions(prev => [createdTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-                setCards(prev => prev.map(c => c.id === destinationCard.id ? { ...c, balance: c.balance + dpAmount } : c));
+                setCards(prev => prev.map(c => c.id === destinationCard.id ? updatedCard : c));
             }
 
             // Update local state

@@ -377,7 +377,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ projects, setProject
                     progress: isInternalEvent ? 100 : 0, status: 'Dikonfirmasi',
                     totalCost: 0, amountPaid: 0, paymentStatus: PaymentStatus.LUNAS,
                 };
-                const newEvent = await SupabaseService.createProject(newEventData);
+                const newEvent = await SupabaseService.createProject(newEventData, profile.adminUserId);
                 setProjects(prev => [...prev, newEvent].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
                 setIsPanelOpen(false);
             }

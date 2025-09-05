@@ -607,7 +607,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ selectedProject
         }, {} as Record<string, AssignedTeamMember[]>);
     }, [selectedProject?.team]);
 
-    const handleAddRevision = (e: React.FormEvent) => {
+    const handleAddRevision = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedProject || !newRevision.freelancerId || !newRevision.adminNotes || !newRevision.deadline) {
             showNotification('Harap lengkapi semua field revisi.');
@@ -623,13 +623,18 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ selectedProject
             status: RevisionStatus.PENDING,
         };
         
-        const updatedProject = { ...selectedProject, revisions: [...(selectedProject.revisions || []), revisionToAdd] };
+        const newRevisions = [...(selectedProject.revisions || []), revisionToAdd];
 
-        setProjects(prevProjects => prevProjects.map(p => p.id === selectedProject.id ? updatedProject : p));
-        setSelectedProject(updatedProject);
-
-        showNotification('Revisi baru berhasil ditambahkan.');
-        setNewRevision({ adminNotes: '', deadline: '', freelancerId: '' });
+        try {
+            const updatedProject = await SupabaseService.updateProject(selectedProject.id, { revisions: newRevisions });
+            setProjects(prevProjects => prevProjects.map(p => p.id === selectedProject.id ? updatedProject : p));
+            setSelectedProject(updatedProject);
+            showNotification('Revisi baru berhasil ditambahkan.');
+            setNewRevision({ adminNotes: '', deadline: '', freelancerId: '' });
+        } catch (error) {
+            console.error('Failed to add revision:', error);
+            showNotification('Gagal menambahkan revisi.');
+        }
     };
 
     const handleShareRevisionLink = (revision: Revision) => {
@@ -650,7 +655,7 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ selectedProject
         });
     };
     
-    const handleToggleDigitalItem = (itemText: string) => {
+    const handleToggleDigitalItem = async (itemText: string) => {
         if (!selectedProject) return;
 
         const currentCompleted = selectedProject.completedDigitalItems || [];
@@ -659,10 +664,14 @@ const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({ selectedProject
             ? currentCompleted.filter(item => item !== itemText)
             : [...currentCompleted, itemText];
 
-        const updatedProject = { ...selectedProject, completedDigitalItems: newCompleted };
-
-        setProjects(prevProjects => prevProjects.map(p => p.id === selectedProject.id ? updatedProject : p));
-        setSelectedProject(updatedProject); // Update local state for immediate UI feedback in the modal
+        try {
+            const updatedProject = await SupabaseService.updateProject(selectedProject.id, { completedDigitalItems: newCompleted });
+            setProjects(prevProjects => prevProjects.map(p => p.id === selectedProject.id ? updatedProject : p));
+            setSelectedProject(updatedProject); // Update local state for immediate UI feedback in the modal
+        } catch (error) {
+            console.error('Failed to update digital items:', error);
+            showNotification('Gagal memperbarui status item digital.');
+        }
     };
     
     if (!selectedProject) return null;
@@ -1396,123 +1405,108 @@ export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, clien
 
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        let projectData: Project;
-
-        if (formMode === 'add') {
-             projectData = {
-                ...initialFormState,
-                ...formData,
-                id: `PRJ${Date.now()}`,
-                progress: 0,
-                totalCost: 0, // Will be set on client page
-                amountPaid: 0,
-                paymentStatus: PaymentStatus.BELUM_BAYAR,
-                packageId: '',
-                addOns: [],
-            };
-        } else { // edit mode
-            const originalProject = projects.find(p => p.id === formData.id);
-            if (!originalProject) return; 
-            projectData = { ...originalProject, ...formData };
-            
-            const handleCostChange = async (
-                costType: 'printingCost' | 'transportCost',
-                newCost: number,
-                oldCost: number
-            ) => {
-                const paymentCardId = cards.find(c => c.id !== 'CARD_CASH')?.id;
-                if (!paymentCardId) {
-                    showNotification("Tidak ada kartu pembayaran untuk mencatat pengeluaran.");
-                    return;
-                }
-
-                const category = costType === 'printingCost' ? 'Cetak Album' : 'Transportasi';
-                const description = costType === 'printingCost' ? `Biaya Cetak - ${projectData.projectName}` : `Biaya Transportasi - ${projectData.projectName}`;
-
-                // Find existing transaction by projectId and category, which should be unique for this type of cost.
-                const existingTx = transactions.find(t => t.projectId === projectData.id && t.category === category);
-
-                if (newCost > 0) {
-                    if (existingTx) {
-                        // Update existing transaction if amount differs
-                        if (existingTx.amount !== newCost) {
-                            const updatedTx = await SupabaseService.updateTransaction(existingTx.id, { amount: newCost });
-                            setTransactions(prev => prev.map(t => t.id === existingTx.id ? updatedTx : t));
-
-                            const diff = newCost - oldAmount;
-                            const card = cards.find(c => c.id === paymentCardId);
-                            if (card) {
-                                const updatedCard = await SupabaseService.updateCard(paymentCardId, { balance: card.balance - diff });
-                                setCards(prev => prev.map(c => c.id === paymentCardId ? updatedCard : c));
-                            }
-                        }
-                    } else {
-                        // Create new transaction
-                        const newTxData: Omit<Transaction, 'id'> = {
-                            date: new Date().toISOString().split('T')[0], description, amount: newCost,
-                            type: TransactionType.EXPENSE, projectId: projectData.id, category,
-                            method: 'Sistem', cardId: paymentCardId,
-                        };
-                        const createdTx = await SupabaseService.createTransaction(newTxData);
-                        setTransactions(prev => [...prev, createdTx]);
-
-                        const card = cards.find(c => c.id === paymentCardId);
-                        if (card) {
-                             const updatedCard = await SupabaseService.updateCard(paymentCardId, { balance: card.balance - newCost });
-                             setCards(prev => prev.map(c => c.id === paymentCardId ? updatedCard : c));
-                        }
-                    }
-                } else if (existingTx) {
-                    // Delete transaction if cost is set to 0
-                    await SupabaseService.deleteTransaction(existingTx.id);
-                    setTransactions(prev => prev.filter(t => t.id !== existingTx.id));
-
-                    const card = cards.find(c => c.id === paymentCardId);
-                    if (card) {
-                        const updatedCard = await SupabaseService.updateCard(paymentCardId, { balance: card.balance + oldCost });
-                        setCards(prev => prev.map(c => c.id === paymentCardId ? updatedCard : c));
-                    }
-                }
-            };
-
-            if (originalProject.printingCost !== projectData.printingCost) {
-                await handleCostChange('printingCost', projectData.printingCost || 0, originalProject.printingCost || 0);
-            }
-            if (originalProject.transportCost !== projectData.transportCost) {
-                await handleCostChange('transportCost', projectData.transportCost || 0, originalProject.transportCost || 0);
-            }
-        }
-        
-        const allTeamMembersOnProject = projectData.team;
-        const otherProjectPayments = teamProjectPayments.filter(p => p.projectId !== projectData.id);
-        const newProjectPaymentEntries: TeamProjectPayment[] = allTeamMembersOnProject.map(teamMember => ({
-            id: `TPP-${projectData.id}-${teamMember.memberId}`,
-            projectId: projectData.id,
-            teamMemberName: teamMember.name,
-            teamMemberId: teamMember.memberId,
-            date: projectData.date,
-            status: 'Unpaid',
-            fee: teamMember.fee,
-            reward: teamMember.reward || 0,
-        }));
-        setTeamProjectPayments([...otherProjectPayments, ...newProjectPaymentEntries]);
 
         try {
             if (formMode === 'add') {
-                const createdProject = await SupabaseService.createProject(projectData);
-                setProjects(prev => [createdProject, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-                showNotification(`Proyek "${projectData.projectName}" berhasil dibuat.`);
-            } else {
+                const projectData = {
+                    ...initialFormState,
+                    ...formData,
+                    // Remove client-side ID generation
+                    progress: 0,
+                    totalCost: 0,
+                    amountPaid: 0,
+                    paymentStatus: PaymentStatus.BELUM_BAYAR,
+                    packageId: '',
+                    addOns: [],
+                };
+                delete (projectData as any).id; // Ensure id is not sent
+
+                const createdProject = await SupabaseService.createProject(projectData, profile.adminUserId);
+                setProjects(prev => [createdProject, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                showNotification(`Proyek "${createdProject.projectName}" berhasil dibuat.`);
+            } else { // edit mode
+                const originalProject = projects.find(p => p.id === formData.id);
+                if (!originalProject) return;
+
+                // Merging data. Note: We are only saving operational data here.
+                // Financial data like totalCost, amountPaid, etc., are managed on the Clients page.
+                const { totalCost, amountPaid, paymentStatus, packageId, addOns, ...operationalData } = formData;
+                const projectData = { ...originalProject, ...operationalData };
+
                 const updatedProject = await SupabaseService.updateProject(projectData.id, projectData);
-                setProjects(prev => prev.map(p => p.id === projectData.id ? updatedProject : p).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-                showNotification(`Proyek "${projectData.projectName}" berhasil diperbarui.`);
+
+                const newPrintingCost = Number(formData.printingCost) || 0;
+                const newTransportCost = Number(formData.transportCost) || 0;
+                const oldPrintingCost = originalProject.printingCost || 0;
+                const oldTransportCost = originalProject.transportCost || 0;
+
+                const transactionsToAdd: Omit<Transaction, 'id'>[] = [];
+                if (newPrintingCost > oldPrintingCost) {
+                    transactionsToAdd.push({
+                        date: new Date().toISOString(),
+                        description: `Biaya Cetak Proyek: ${originalProject.projectName}`,
+                        amount: newPrintingCost - oldPrintingCost,
+                        type: TransactionType.EXPENSE,
+                        projectId: originalProject.id,
+                        category: 'Cetak Album',
+                        method: 'Kartu',
+                        cardId: cards.find(c => c.cardType !== 'Tunai')?.id || '',
+                    });
+                }
+                if (newTransportCost > oldTransportCost) {
+                    transactionsToAdd.push({
+                        date: new Date().toISOString(),
+                        description: `Biaya Transportasi Proyek: ${originalProject.projectName}`,
+                        amount: newTransportCost - oldTransportCost,
+                        type: TransactionType.EXPENSE,
+                        projectId: originalProject.id,
+                        category: 'Transportasi',
+                        method: 'Kartu',
+                        cardId: cards.find(c => c.cardType !== 'Tunai')?.id || '',
+                    });
+                }
+
+                if (transactionsToAdd.length > 0) {
+                    for (const txData of transactionsToAdd) {
+                        const sourceCard = cards.find(c => c.id === txData.cardId);
+                        if (!sourceCard) throw new Error("Tidak ada kartu yang valid untuk membayar biaya tambahan.");
+                        if (sourceCard.balance < txData.amount) throw new Error(`Saldo di kartu ${sourceCard.bankName} tidak mencukupi.`);
+
+                        const createdTx = await SupabaseService.createTransaction(txData, profile.adminUserId);
+                        const updatedCard = await SupabaseService.updateCard(sourceCard.id, { balance: sourceCard.balance - txData.amount });
+
+                        setTransactions(prev => [...prev, createdTx].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                        setCards(prev => prev.map(c => c.id === updatedCard.id ? updatedCard : c));
+                    }
+                    showNotification(`${transactionsToAdd.length} biaya tambahan telah dicatat.`);
+                }
+
+                setProjects(prev => prev.map(p => p.id === projectData.id ? updatedProject : p).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                showNotification(`Proyek "${updatedProject.projectName}" berhasil diperbarui.`);
             }
         } catch (error) {
             console.error('Error saving project:', error);
             alert('Gagal menyimpan proyek. Silakan coba lagi.');
             return;
         }
+
+        // This logic seems to be client-side only and might need a dedicated persistence strategy.
+        // For now, we leave it as is to avoid breaking UI assumptions.
+        const projectId = formData.id || `PRJ_TEMP_${Date.now()}`; // Use temp id if new
+        const allTeamMembersOnProject = formData.team;
+        const otherProjectPayments = teamProjectPayments.filter(p => p.projectId !== projectId);
+        const newProjectPaymentEntries: TeamProjectPayment[] = allTeamMembersOnProject.map(teamMember => ({
+            id: `TPP-${projectId}-${teamMember.memberId}`,
+            projectId: projectId,
+            teamMemberName: teamMember.name,
+            teamMemberId: teamMember.memberId,
+            date: formData.date,
+            status: 'Unpaid',
+            fee: teamMember.fee,
+            reward: teamMember.reward || 0,
+        }));
+        setTeamProjectPayments([...otherProjectPayments, ...newProjectPaymentEntries]);
+
         handleCloseForm();
     };
 

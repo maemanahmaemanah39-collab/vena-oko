@@ -365,10 +365,17 @@ const Settings: React.FC<SettingsProps> = ({ profile, setProfile, transactions, 
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 2000);
+        try {
+            await SupabaseService.updateProfile(profile.id, profile);
+            showNotification('Pengaturan berhasil disimpan.');
+            setShowSuccess(true);
+            setTimeout(() => setShowSuccess(false), 2000);
+        } catch (error) {
+            console.error("Failed to save settings:", error);
+            showNotification('Gagal menyimpan pengaturan. Silakan coba lagi.');
+        }
     }
     
     // --- User Management Handlers ---

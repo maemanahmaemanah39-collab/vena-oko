@@ -85,7 +85,7 @@ export const Assets: React.FC<AssetsProps> = ({ assets, setAssets, profile, show
         
         try {
             if (modalMode === 'add') {
-                const newAsset = await SupabaseService.createAsset(assetData);
+                const newAsset = await SupabaseService.createAsset(assetData, profile.adminUserId);
                 setAssets(prev => [...prev, newAsset]);
                 showNotification(`Aset "${newAsset.name}" berhasil ditambahkan.`);
             } else if (selectedAsset) {

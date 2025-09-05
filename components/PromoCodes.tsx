@@ -22,9 +22,10 @@ interface PromoCodesProps {
     setPromoCodes: React.Dispatch<React.SetStateAction<PromoCode[]>>;
     projects: Project[];
     showNotification: (message: string) => void;
+    profile: Profile;
 }
 
-const PromoCodes: React.FC<PromoCodesProps> = ({ promoCodes, setPromoCodes, projects, showNotification }) => {
+const PromoCodes: React.FC<PromoCodesProps> = ({ promoCodes, setPromoCodes, projects, showNotification, profile }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
     const [selectedCode, setSelectedCode] = useState<PromoCode | null>(null);
@@ -64,48 +65,51 @@ const PromoCodes: React.FC<PromoCodesProps> = ({ promoCodes, setPromoCodes, proj
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const promoCodeData = {
+            code: formData.code.toUpperCase(),
+            discountType: formData.discountType,
+            discountValue: Number(formData.discountValue),
+            isActive: formData.isActive,
+            maxUsage: formData.maxUsage ? Number(formData.maxUsage) : null,
+            expiryDate: formData.expiryDate || null,
+            usageCount: selectedCode?.usageCount || 0,
+        };
 
-        if (modalMode === 'add') {
-            const newCode: PromoCode = {
-                id: crypto.randomUUID(),
-                code: formData.code.toUpperCase(),
-                discountType: formData.discountType,
-                discountValue: Number(formData.discountValue),
-                isActive: formData.isActive,
-                usageCount: 0,
-                maxUsage: formData.maxUsage ? Number(formData.maxUsage) : null,
-                expiryDate: formData.expiryDate || null,
-                createdAt: new Date().toISOString(),
-            };
-            setPromoCodes(prev => [...prev, newCode]);
-            showNotification(`Kode promo "${newCode.code}" berhasil dibuat.`);
-        } else if (selectedCode) {
-            const updatedCode = {
-                ...selectedCode,
-                code: formData.code.toUpperCase(),
-                discountType: formData.discountType,
-                discountValue: Number(formData.discountValue),
-                isActive: formData.isActive,
-                maxUsage: formData.maxUsage ? Number(formData.maxUsage) : null,
-                expiryDate: formData.expiryDate || null,
-            };
-            setPromoCodes(prev => prev.map(c => c.id === selectedCode.id ? updatedCode : c));
-            showNotification(`Kode promo "${updatedCode.code}" berhasil diperbarui.`);
+        try {
+            const SupabaseService = (await import('../lib/supabaseService')).default;
+            if (modalMode === 'add') {
+                const newCode = await SupabaseService.createPromoCode(promoCodeData, profile.adminUserId);
+                setPromoCodes(prev => [...prev, newCode]);
+                showNotification(`Kode promo "${newCode.code}" berhasil dibuat.`);
+            } else if (selectedCode) {
+                const updatedCode = await SupabaseService.updatePromoCode(selectedCode.id, promoCodeData);
+                setPromoCodes(prev => prev.map(c => c.id === selectedCode.id ? updatedCode : c));
+                showNotification(`Kode promo "${updatedCode.code}" berhasil diperbarui.`);
+            }
+            handleCloseModal();
+        } catch (error) {
+            console.error('Error saving promo code:', error);
+            showNotification('Gagal menyimpan kode promo.');
         }
-        handleCloseModal();
     };
 
-    const handleDelete = (codeId: string) => {
+    const handleDelete = async (codeId: string) => {
         const isUsed = projects.some(p => p.promoCodeId === codeId);
         if (isUsed) {
             showNotification('Kode promo tidak dapat dihapus karena sedang digunakan pada proyek.');
             return;
         }
         if (window.confirm("Apakah Anda yakin ingin menghapus kode promo ini?")) {
-            setPromoCodes(prev => prev.filter(c => c.id !== codeId));
-            showNotification('Kode promo berhasil dihapus.');
+            try {
+                await (await import('../lib/supabaseService')).default.deletePromoCode(codeId);
+                setPromoCodes(prev => prev.filter(c => c.id !== codeId));
+                showNotification('Kode promo berhasil dihapus.');
+            } catch (error) {
+                console.error('Error deleting promo code:', error);
+                showNotification('Gagal menghapus kode promo.');
+            }
         }
     };
 

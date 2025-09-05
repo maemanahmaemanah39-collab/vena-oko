@@ -326,7 +326,7 @@ const PublicPackages: React.FC<PublicPackagesProps> = ({ packages, addOns, userP
                 lastContact: new Date().toISOString(), 
                 portalAccessId: crypto.randomUUID(),
             };
-            const createdClient = await SupabaseService.createClient(newClientData);
+            const createdClient = await SupabaseService.createClient(newClientData, userProfile.adminUserId);
 
             // 2. Create Project in Supabase
             const newProjectData: Omit<Project, 'id'> = {
@@ -352,7 +352,7 @@ const PublicPackages: React.FC<PublicPackagesProps> = ({ packages, addOns, userP
                 discountAmount: discountAmount > 0 ? discountAmount : undefined,
                 transportCost: transportFee > 0 ? transportFee : undefined,
             };
-            const createdProject = await SupabaseService.createProject(newProjectData);
+            const createdProject = await SupabaseService.createProject(newProjectData, userProfile.adminUserId);
             
             // 3. Create Lead in Supabase
             const newLeadData: Omit<Lead, 'id'> = {
@@ -363,7 +363,7 @@ const PublicPackages: React.FC<PublicPackagesProps> = ({ packages, addOns, userP
                 date: new Date().toISOString(),
                 notes: `Dikonversi dari halaman paket. Proyek: ${createdProject.projectName}. Klien ID: ${createdClient.id}`
             };
-            const createdLead = await SupabaseService.createLead(newLeadData);
+            const createdLead = await SupabaseService.createLead(newLeadData, userProfile.adminUserId);
 
             // 4. Update promo code usage if applicable
             if (promoCodeAppliedId) {
@@ -386,7 +386,7 @@ const PublicPackages: React.FC<PublicPackagesProps> = ({ packages, addOns, userP
                     method: 'Transfer Bank', 
                     cardId: destinationCard.id,
                 };
-                const createdTransaction = await SupabaseService.createTransaction(newTransactionData);
+                const createdTransaction = await SupabaseService.createTransaction(newTransactionData, userProfile.adminUserId);
                 
                 // Update card balance
                 await SupabaseService.updateCard(destinationCard.id, { balance: destinationCard.balance + dpAmount });

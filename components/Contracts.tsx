@@ -210,7 +210,7 @@ const Contracts: React.FC<ContractsProps> = ({ contracts, setContracts, clients,
                     createdAt: new Date().toISOString(),
                     ...formData,
                 };
-                const newContract = await SupabaseService.createContract(newContractData);
+                const newContract = await SupabaseService.createContract(newContractData, profile.adminUserId);
                 setContracts(prev => [...prev, newContract]);
                 showNotification('Kontrak baru berhasil dibuat.');
             } else if (selectedContract) {

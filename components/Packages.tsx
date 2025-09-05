@@ -3,6 +3,7 @@ import { Package, AddOn, Project, PhysicalItem, Profile } from '../types';
 import PageHeader from './PageHeader';
 import Modal from './Modal';
 import { PencilIcon, Trash2Icon, PlusIcon, Share2Icon, FileTextIcon, CameraIcon } from '../constants';
+import SupabaseService from '../lib/supabaseService';
 
 const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
@@ -141,7 +142,7 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
     });
   }
 
-  const handlePackageDelete = (pkgId: string) => {
+  const handlePackageDelete = async (pkgId: string) => {
     const isPackageInUse = projects.some(p => p.packageId === pkgId);
     if (isPackageInUse) {
         alert("Paket ini tidak dapat dihapus karena sedang digunakan oleh satu atau lebih proyek. Hapus atau ubah proyek tersebut terlebih dahulu.");
@@ -149,11 +150,17 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
     }
 
     if (window.confirm("Apakah Anda yakin ingin menghapus paket ini?")) {
-        setPackages(prev => prev.filter(p => p.id !== pkgId));
+        try {
+            await SupabaseService.deletePackage(pkgId);
+            setPackages(prev => prev.filter(p => p.id !== pkgId));
+        } catch (error) {
+            console.error("Failed to delete package:", error);
+            alert("Gagal menghapus paket.");
+        }
     }
   }
 
-  const handlePackageSubmit = (e: React.FormEvent) => {
+  const handlePackageSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!packageFormData.name || !packageFormData.price) {
         alert('Nama Paket dan Harga tidak boleh kosong.');
@@ -174,14 +181,19 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
         coverImage: packageFormData.coverImage,
     };
     
-    if (packageEditMode !== 'new' && packageEditMode) {
-        setPackages(prev => prev.map(p => p.id === packageEditMode ? { ...p, ...packageData } : p));
-    } else {
-        const newPackage: Package = { ...packageData, id: crypto.randomUUID() };
-        setPackages(prev => [...prev, newPackage]);
+    try {
+        if (packageEditMode !== 'new' && packageEditMode) {
+            const updatedPackage = await SupabaseService.updatePackage(packageEditMode, packageData);
+            setPackages(prev => prev.map(p => p.id === packageEditMode ? updatedPackage : p));
+        } else {
+            const newPackage = await SupabaseService.createPackage(packageData, profile.adminUserId);
+            setPackages(prev => [...prev, newPackage]);
+        }
+        handlePackageCancelEdit();
+    } catch (error) {
+        console.error("Failed to save package:", error);
+        alert("Gagal menyimpan paket.");
     }
-
-    handlePackageCancelEdit();
   };
 
   // --- AddOn Handlers ---
@@ -190,7 +202,7 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
     setAddOnFormData(prev => ({...prev, [name]: value}));
   };
   
-    const handleAddOnSubmit = (e: React.FormEvent) => {
+    const handleAddOnSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!addOnFormData.name || !addOnFormData.price) {
             alert('Nama Add-On dan Harga tidak boleh kosong.');
@@ -202,14 +214,19 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
             price: Number(addOnFormData.price),
         };
         
-        if (addOnEditMode) {
-            setAddOns(prev => prev.map(a => a.id === addOnEditMode ? { ...a, ...addOnData } : a));
-        } else {
-            const newAddOn: AddOn = { ...addOnData, id: crypto.randomUUID() };
-            setAddOns(prev => [...prev, newAddOn]);
+        try {
+            if (addOnEditMode) {
+                const updatedAddOn = await SupabaseService.updateAddOn(addOnEditMode, addOnData);
+                setAddOns(prev => prev.map(a => a.id === addOnEditMode ? updatedAddOn : a));
+            } else {
+                const newAddOn = await SupabaseService.createAddOn(addOnData, profile.adminUserId);
+                setAddOns(prev => [...prev, newAddOn]);
+            }
+            handleAddOnCancelEdit();
+        } catch (error) {
+            console.error("Failed to save add-on:", error);
+            alert("Gagal menyimpan add-on.");
         }
-
-        handleAddOnCancelEdit();
     };
 
   const handleAddOnCancelEdit = () => {
@@ -225,7 +242,7 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
     });
   }
 
-  const handleAddOnDelete = (addOnId: string) => {
+  const handleAddOnDelete = async (addOnId: string) => {
     const isAddOnInUse = projects.some(p => p.addOns.some(a => a.id === addOnId));
     if (isAddOnInUse) {
         alert("Add-on ini tidak dapat dihapus karena sedang digunakan oleh satu atau lebih proyek. Hapus atau ubah proyek tersebut terlebih dahulu.");
@@ -233,7 +250,13 @@ const Packages: React.FC<PackagesProps> = ({ packages, setPackages, addOns, setA
     }
 
     if (window.confirm("Apakah Anda yakin ingin menghapus add-on ini?")) {
-        setAddOns(prev => prev.filter(p => p.id !== addOnId));
+        try {
+            await SupabaseService.deleteAddOn(addOnId);
+            setAddOns(prev => prev.filter(p => p.id !== addOnId));
+        } catch (error) {
+            console.error("Failed to delete add-on:", error);
+            alert("Gagal menghapus add-on.");
+        }
     }
   };
 

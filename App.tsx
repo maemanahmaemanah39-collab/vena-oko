@@ -61,32 +61,6 @@ const useSupabaseData = <T,>(fetcher: () => Promise<T[]>): [T[], React.Dispatch<
     return [data, setData, loading];
 };
 
-// Hook for single item from Supabase
-const useSupabaseItem = <T,>(fetcher: () => Promise<T | null>, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>, boolean] => {
-    const [data, setData] = useState<T>(defaultValue);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const loadData = async () => {
-            try {
-                setLoading(true);
-                const result = await fetcher();
-                // We still use defaultValue for single items if the fetch returns null
-                setData(result || defaultValue);
-            } catch (error) {
-                console.error('Error loading item from Supabase:', error);
-                // On error, we fall back to the default value for single items (e.g., profile)
-                setData(defaultValue);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadData();
-    }, [fetcher, defaultValue]);
-
-    return [data, setData, loading];
-};
 
 // Keep simple local state for authentication (can be moved to Supabase auth later)
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
@@ -306,7 +280,8 @@ const App: React.FC = () => {
   const [teamProjectPayments, setTeamProjectPayments, teamProjectPaymentsLoading] = useSupabaseData<TeamProjectPayment>(() => SupabaseService.getTeamProjectPayments());
   const [teamPaymentRecords, setTeamPaymentRecords, teamPaymentRecordsLoading] = useSupabaseData<TeamPaymentRecord>(() => SupabaseService.getTeamPaymentRecords());
   const [pockets, setPockets, pocketsLoading] = useSupabaseData<FinancialPocket>(() => SupabaseService.getFinancialPockets());
-  const [profile, setProfile, profileLoading] = useSupabaseItem<Profile>(() => SupabaseService.getProfile(), JSON.parse(JSON.stringify(DEFAULT_USER_PROFILE)));
+  const [profile, setProfile] = useState<Profile>(JSON.parse(JSON.stringify(DEFAULT_USER_PROFILE)));
+  const [profileLoading, setProfileLoading] = useState(true);
   const [leads, setLeads, leadsLoading] = useSupabaseData<Lead>(() => SupabaseService.getLeads());
   const [rewardLedgerEntries, setRewardLedgerEntries, rewardLedgerEntriesLoading] = useSupabaseData<RewardLedgerEntry>(() => SupabaseService.getRewardLedgerEntries());
   const [cards, setCards, cardsLoading] = useSupabaseData<Card>(() => SupabaseService.getCards());
@@ -319,6 +294,71 @@ const App: React.FC = () => {
   const [sops, setSops, sopsLoading] = useSupabaseData<SOP>(() => SupabaseService.getSOPs());
   const [packages, setPackages, packagesLoading] = useSupabaseData<Package>(() => SupabaseService.getPackages());
   const [addOns, setAddOns, addOnsLoading] = useSupabaseData<AddOn>(() => SupabaseService.getAddOns());
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (currentUser) {
+        setProfileLoading(true);
+        try {
+          // Corrected call: getProfile takes no arguments
+          const userProfile = await SupabaseService.getProfile();
+          if (userProfile) {
+            setProfile(userProfile);
+          } else {
+            // Profile doesn't exist for this authenticated user, let's create it.
+            console.log("No profile found for user, creating one.");
+            const newProfileData: Omit<Profile, 'id'> = {
+              adminUserId: currentUser.id,
+              email: currentUser.email!,
+              fullName: currentUser.fullName || 'New User',
+              companyName: `${currentUser.fullName || 'New User'}'s Studio`,
+              // Fill with other default values from DEFAULT_USER_PROFILE
+              phone: '',
+              website: '',
+              address: '',
+              bankAccount: '',
+              authorizedSigner: currentUser.fullName || 'New User',
+              idNumber: '',
+              bio: '',
+              incomeCategories: DEFAULT_USER_PROFILE.incomeCategories,
+              expenseCategories: DEFAULT_USER_PROFILE.expenseCategories,
+              projectTypes: DEFAULT_USER_PROFILE.projectTypes,
+              eventTypes: DEFAULT_USER_PROFILE.eventTypes,
+              assetCategories: DEFAULT_USER_PROFILE.assetCategories,
+              sopCategories: DEFAULT_USER_PROFILE.sopCategories,
+              packageCategories: DEFAULT_USER_PROFILE.packageCategories,
+              projectStatusConfig: DEFAULT_USER_PROFILE.projectStatusConfig,
+              notificationSettings: DEFAULT_USER_PROFILE.notificationSettings,
+              securitySettings: DEFAULT_USER_PROFILE.securitySettings,
+              briefingTemplate: DEFAULT_USER_PROFILE.briefingTemplate,
+              termsAndConditions: DEFAULT_USER_PROFILE.termsAndConditions,
+              logoBase64: undefined,
+              brandColor: '#3b82f6',
+              publicPageConfig: DEFAULT_USER_PROFILE.publicPageConfig,
+              packageShareTemplate: DEFAULT_USER_PROFILE.packageShareTemplate,
+              bookingFormTemplate: DEFAULT_USER_PROFILE.bookingFormTemplate,
+              chatTemplates: DEFAULT_USER_PROFILE.chatTemplates,
+            };
+            const createdProfile = await SupabaseService.createProfile(newProfileData);
+            setProfile(createdProfile);
+          }
+        } catch (error) {
+            console.error("Error fetching or creating profile:", error);
+        } finally {
+            setProfileLoading(false);
+        }
+      } else {
+        // No user, so reset to default and stop loading.
+        setProfile(JSON.parse(JSON.stringify(DEFAULT_USER_PROFILE)));
+        setProfileLoading(false);
+      }
+    };
+
+    // Only run fetchProfile if auth is no longer loading
+    if (!authLoading) {
+      fetchProfile();
+    }
+  }, [currentUser, authLoading]);
 
   // Check if any data is still loading
   const isLoading = usersLoading || clientsLoading || projectsLoading || teamMembersLoading || 
@@ -352,7 +392,7 @@ const App: React.FC = () => {
 
         try {
             // Save to Supabase
-            const savedNotification = await SupabaseService.createNotification(newNotification);
+            const savedNotification = await SupabaseService.createNotification(newNotification, profile.adminUserId);
             setNotifications(prev => [savedNotification, ...prev]);
 
             if (profile.email) {
@@ -659,9 +699,9 @@ const App: React.FC = () => {
             showNotification={showNotification}
         />;
       case ViewType.SOCIAL_MEDIA_PLANNER:
-        return <SocialPlanner posts={socialMediaPosts} setPosts={setSocialMediaPosts} projects={projects} showNotification={showNotification} />;
+        return <SocialPlanner posts={socialMediaPosts} setPosts={setSocialMediaPosts} projects={projects} showNotification={showNotification} profile={profile} />;
       case ViewType.PROMO_CODES:
-        return <PromoCodes promoCodes={promoCodes} setPromoCodes={setPromoCodes} projects={projects} showNotification={showNotification} />;
+        return <PromoCodes promoCodes={promoCodes} setPromoCodes={setPromoCodes} projects={projects} showNotification={showNotification} profile={profile} />;
       default:
         return <div />;
     }
@@ -698,7 +738,7 @@ const App: React.FC = () => {
     return <PublicLeadForm setLeads={setLeads} userProfile={profile} showNotification={showNotification} addNotification={addNotification} />;
   }
   
-  if (route.startsWith('#/feedback')) return <PublicFeedbackForm setClientFeedback={setClientFeedback} />;
+  if (route.startsWith('#/feedback')) return <PublicFeedbackForm setClientFeedback={setClientFeedback} userProfile={profile} />;
   if (route.startsWith('#/suggestion-form')) return <SuggestionForm setLeads={setLeads} />;
   if (route.startsWith('#/revision-form')) return <PublicRevisionForm projects={projects} teamMembers={teamMembers} onUpdateRevision={(pId, rId, data) => setProjects(prev => prev.map(p => p.id === pId ? {...p, revisions: p.revisions?.map(r => r.id === rId ? {...r, ...data, completedDate: new Date().toISOString()} : r)} : p))} />;
   if (route.startsWith('#/portal/')) {

@@ -298,14 +298,19 @@ class SupabaseService {
     return data?.map(this.mapClientFromDB) || []
   }
 
-  static async createClient(client: Omit<Client, 'id'>): Promise<Client> {
+  static async createClient(client: Omit<Client, 'id'>, userId: string): Promise<Client> {
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout: Gagal menyimpan data klien. Silakan coba lagi.')), 10000)
     );
 
+    const clientData = {
+      ...this.mapClientToDB(client),
+      user_id: userId,
+    };
+
     const createPromise = supabase
       .from('clients')
-      .insert([this.mapClientToDB(client)])
+      .insert([clientData])
       .select()
       .single();
 
@@ -339,10 +344,14 @@ class SupabaseService {
     return data?.map(this.mapPackageFromDB) || []
   }
 
-  static async createPackage(pkg: Omit<Package, 'id'>): Promise<Package> {
+  static async createPackage(pkg: Omit<Package, 'id'>, userId: string): Promise<Package> {
+    const pkgData = {
+      ...this.mapPackageToDB(pkg),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('packages')
-      .insert([this.mapPackageToDB(pkg)])
+      .insert([pkgData])
       .select()
       .single()
     
@@ -378,10 +387,14 @@ class SupabaseService {
     })) || []
   }
 
-  static async createAddOn(addOn: Omit<AddOn, 'id'>): Promise<AddOn> {
+  static async createAddOn(addOn: Omit<AddOn, 'id'>, userId: string): Promise<AddOn> {
+    const addOnData = {
+      ...addOn,
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('add_ons')
-      .insert([addOn])
+      .insert([addOnData])
       .select()
       .single()
     
@@ -413,14 +426,19 @@ class SupabaseService {
     return data?.map(this.mapProjectFromDB) || []
   }
 
-  static async createProject(project: Omit<Project, 'id'>): Promise<Project> {
+  static async createProject(project: Omit<Project, 'id'>, userId: string): Promise<Project> {
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout: Gagal menyimpan proyek. Silakan coba lagi.')), 10000)
     );
 
+    const projectData = {
+      ...this.mapProjectToDB(project),
+      user_id: userId,
+    };
+
     const createPromise = supabase
       .from('projects')
-      .insert([this.mapProjectToDB(project)])
+      .insert([projectData])
       .select()
       .single();
 
@@ -455,10 +473,14 @@ class SupabaseService {
     return data?.map(this.mapTeamMemberFromDB) || []
   }
 
-  static async createTeamMember(member: Omit<TeamMember, 'id'>): Promise<TeamMember> {
+  static async createTeamMember(member: Omit<TeamMember, 'id'>, userId: string): Promise<TeamMember> {
+    const memberData = {
+      ...this.mapTeamMemberToDB(member),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('team_members')
-      .insert([this.mapTeamMemberToDB(member)])
+      .insert([memberData])
       .select()
       .single()
     
@@ -490,14 +512,19 @@ class SupabaseService {
     return data?.map(this.mapTransactionFromDB) || []
   }
 
-  static async createTransaction(transaction: Omit<Transaction, 'id'>): Promise<Transaction> {
+  static async createTransaction(transaction: Omit<Transaction, 'id'>, userId: string): Promise<Transaction> {
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout: Gagal menyimpan transaksi. Silakan coba lagi.')), 10000)
     );
 
+    const transactionData = {
+      ...this.mapTransactionToDB(transaction),
+      user_id: userId,
+    };
+
     const createPromise = supabase
       .from('transactions')
-      .insert([this.mapTransactionToDB(transaction)])
+      .insert([transactionData])
       .select()
       .single();
 
@@ -531,10 +558,14 @@ class SupabaseService {
     return data?.map(this.mapCardFromDB) || []
   }
 
-  static async createCard(card: Omit<Card, 'id'>): Promise<Card> {
+  static async createCard(card: Omit<Card, 'id'>, userId: string): Promise<Card> {
+    const cardData = {
+      ...this.mapCardToDB(card),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('cards')
-      .insert([this.mapCardToDB(card)])
+      .insert([cardData])
       .select()
       .single()
     
@@ -566,10 +597,14 @@ class SupabaseService {
     return data?.map(this.mapFinancialPocketFromDB) || []
   }
 
-  static async createFinancialPocket(pocket: Omit<FinancialPocket, 'id'>): Promise<FinancialPocket> {
+  static async createFinancialPocket(pocket: Omit<FinancialPocket, 'id'>, userId: string): Promise<FinancialPocket> {
+    const pocketData = {
+      ...this.mapFinancialPocketToDB(pocket),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('financial_pockets')
-      .insert([this.mapFinancialPocketToDB(pocket)])
+      .insert([pocketData])
       .select()
       .single()
     
@@ -601,14 +636,19 @@ class SupabaseService {
     return data?.map(this.mapLeadFromDB) || []
   }
 
-  static async createLead(lead: Omit<Lead, 'id'>): Promise<Lead> {
+  static async createLead(lead: Omit<Lead, 'id'>, userId: string): Promise<Lead> {
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout: Gagal menyimpan prospek. Silakan coba lagi.')), 10000)
     );
 
+    const leadData = {
+      ...this.mapLeadToDB(lead),
+      user_id: userId,
+    };
+
     const createPromise = supabase
       .from('leads')
-      .insert([this.mapLeadToDB(lead)])
+      .insert([leadData])
       .select()
       .single();
 
@@ -642,10 +682,14 @@ class SupabaseService {
     return data?.map(this.mapAssetFromDB) || []
   }
 
-  static async createAsset(asset: Omit<Asset, 'id'>): Promise<Asset> {
+  static async createAsset(asset: Omit<Asset, 'id'>, userId: string): Promise<Asset> {
+    const assetData = {
+      ...this.mapAssetToDB(asset),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('assets')
-      .insert([this.mapAssetToDB(asset)])
+      .insert([assetData])
       .select()
       .single()
     
@@ -677,10 +721,14 @@ class SupabaseService {
     return data?.map(this.mapContractFromDB) || []
   }
 
-  static async createContract(contract: Omit<Contract, 'id'>): Promise<Contract> {
+  static async createContract(contract: Omit<Contract, 'id'>, userId: string): Promise<Contract> {
+    const contractData = {
+      ...this.mapContractToDB(contract),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('contracts')
-      .insert([this.mapContractToDB(contract)])
+      .insert([contractData])
       .select()
       .single()
     
@@ -712,14 +760,19 @@ class SupabaseService {
     return data?.map(this.mapClientFeedbackFromDB) || []
   }
 
-  static async createClientFeedback(feedback: Omit<ClientFeedback, 'id'>): Promise<ClientFeedback> {
+  static async createClientFeedback(feedback: Omit<ClientFeedback, 'id'>, userId: string): Promise<ClientFeedback> {
     const timeoutPromise = new Promise((_, reject) => 
       setTimeout(() => reject(new Error('Timeout: Gagal menyimpan feedback. Silakan coba lagi.')), 10000)
     );
 
+    const feedbackData = {
+      ...this.mapClientFeedbackToDB(feedback),
+      user_id: userId,
+    };
+
     const createPromise = supabase
       .from('client_feedback')
-      .insert([this.mapClientFeedbackToDB(feedback)])
+      .insert([feedbackData])
       .select()
       .single();
 
@@ -753,10 +806,14 @@ class SupabaseService {
     return data?.map(this.mapNotificationFromDB) || []
   }
 
-  static async createNotification(notification: Omit<Notification, 'id'>): Promise<Notification> {
+  static async createNotification(notification: Omit<Notification, 'id'>, userId: string): Promise<Notification> {
+    const notificationData = {
+      ...this.mapNotificationToDB(notification),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('notifications')
-      .insert([this.mapNotificationToDB(notification)])
+      .insert([notificationData])
       .select()
       .single()
     
@@ -788,10 +845,14 @@ class SupabaseService {
     return data?.map(this.mapSocialMediaPostFromDB) || []
   }
 
-  static async createSocialMediaPost(post: Omit<SocialMediaPost, 'id'>): Promise<SocialMediaPost> {
+  static async createSocialMediaPost(post: Omit<SocialMediaPost, 'id'>, userId: string): Promise<SocialMediaPost> {
+    const postData = {
+      ...this.mapSocialMediaPostToDB(post),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('social_media_posts')
-      .insert([this.mapSocialMediaPostToDB(post)])
+      .insert([postData])
       .select()
       .single()
     
@@ -823,10 +884,14 @@ class SupabaseService {
     return data?.map(this.mapPromoCodeFromDB) || []
   }
 
-  static async createPromoCode(promoCode: Omit<PromoCode, 'id'>): Promise<PromoCode> {
+  static async createPromoCode(promoCode: Omit<PromoCode, 'id'>, userId: string): Promise<PromoCode> {
+    const promoCodeData = {
+      ...this.mapPromoCodeToDB(promoCode),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('promo_codes')
-      .insert([this.mapPromoCodeToDB(promoCode)])
+      .insert([promoCodeData])
       .select()
       .single()
     
@@ -858,10 +923,14 @@ class SupabaseService {
     return data?.map(this.mapSOPFromDB) || []
   }
 
-  static async createSOP(sop: Omit<SOP, 'id'>): Promise<SOP> {
+  static async createSOP(sop: Omit<SOP, 'id'>, userId: string): Promise<SOP> {
+    const sopData = {
+      ...this.mapSOPToDB(sop),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('sops')
-      .insert([this.mapSOPToDB(sop)])
+      .insert([sopData])
       .select()
       .single()
     
@@ -893,10 +962,14 @@ class SupabaseService {
     return data?.map(this.mapTeamProjectPaymentFromDB) || []
   }
 
-  static async createTeamProjectPayment(payment: Omit<TeamProjectPayment, 'id'>): Promise<TeamProjectPayment> {
+  static async createTeamProjectPayment(payment: Omit<TeamProjectPayment, 'id'>, userId: string): Promise<TeamProjectPayment> {
+    const paymentData = {
+      ...this.mapTeamProjectPaymentToDB(payment),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('team_project_payments')
-      .insert([this.mapTeamProjectPaymentToDB(payment)])
+      .insert([paymentData])
       .select()
       .single()
     
@@ -928,10 +1001,14 @@ class SupabaseService {
     return data?.map(this.mapTeamPaymentRecordFromDB) || []
   }
 
-  static async createTeamPaymentRecord(record: Omit<TeamPaymentRecord, 'id'>): Promise<TeamPaymentRecord> {
+  static async createTeamPaymentRecord(record: Omit<TeamPaymentRecord, 'id'>, userId: string): Promise<TeamPaymentRecord> {
+    const recordData = {
+      ...this.mapTeamPaymentRecordToDB(record),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('team_payment_records')
-      .insert([this.mapTeamPaymentRecordToDB(record)])
+      .insert([recordData])
       .select()
       .single()
     
@@ -963,10 +1040,14 @@ class SupabaseService {
     return data?.map(this.mapRewardLedgerEntryFromDB) || []
   }
 
-  static async createRewardLedgerEntry(entry: Omit<RewardLedgerEntry, 'id'>): Promise<RewardLedgerEntry> {
+  static async createRewardLedgerEntry(entry: Omit<RewardLedgerEntry, 'id'>, userId: string): Promise<RewardLedgerEntry> {
+    const entryData = {
+      ...this.mapRewardLedgerEntryToDB(entry),
+      user_id: userId,
+    };
     const { data, error } = await supabase
       .from('reward_ledger_entries')
-      .insert([this.mapRewardLedgerEntryToDB(entry)])
+      .insert([entryData])
       .select()
       .single()
     
