@@ -35,31 +35,6 @@ import PromoCodes from './components/PromoCodes';
 import SOPManagement from './components/SOP';
 import Homepage from './components/Homepage';
 
-// Hook for loading data from Supabase with local state management
-const useSupabaseData = <T,>(fetcher: () => Promise<T[]>): [T[], React.Dispatch<React.SetStateAction<T[]>>, boolean] => {
-    const [data, setData] = useState<T[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const loadData = async () => {
-            try {
-                setLoading(true);
-                const result = await fetcher();
-                setData(result);
-            } catch (error) {
-                console.error('Error loading data from Supabase:', error);
-                // On error, we now set an empty array instead of falling back to mock data.
-                setData([]);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadData();
-    }, [fetcher]);
-
-    return [data, setData, loading];
-};
 
 
 // Keep simple local state for authentication (can be moved to Supabase auth later)
@@ -270,103 +245,107 @@ const App: React.FC = () => {
   const [route, setRoute] = useState(window.location.hash || '#/home');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // --- State Initialization with Supabase ---
-  const [users, setUsers, usersLoading] = useSupabaseData<User>(() => SupabaseService.getUsers());
-  
-  const [clients, setClients, clientsLoading] = useSupabaseData<Client>(() => SupabaseService.getClients());
-  const [projects, setProjects, projectsLoading] = useSupabaseData<Project>(() => SupabaseService.getProjects());
-  const [teamMembers, setTeamMembers, teamMembersLoading] = useSupabaseData<TeamMember>(() => SupabaseService.getTeamMembers());
-  const [transactions, setTransactions, transactionsLoading] = useSupabaseData<Transaction>(() => SupabaseService.getTransactions());
-  const [teamProjectPayments, setTeamProjectPayments, teamProjectPaymentsLoading] = useSupabaseData<TeamProjectPayment>(() => SupabaseService.getTeamProjectPayments());
-  const [teamPaymentRecords, setTeamPaymentRecords, teamPaymentRecordsLoading] = useSupabaseData<TeamPaymentRecord>(() => SupabaseService.getTeamPaymentRecords());
-  const [pockets, setPockets, pocketsLoading] = useSupabaseData<FinancialPocket>(() => SupabaseService.getFinancialPockets());
+  // --- State Initialization ---
+  const [isLoading, setIsLoading] = useState(true);
+  const [users, setUsers] = useState<User[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [teamProjectPayments, setTeamProjectPayments] = useState<TeamProjectPayment[]>([]);
+  const [teamPaymentRecords, setTeamPaymentRecords] = useState<TeamPaymentRecord[]>([]);
+  const [pockets, setPockets] = useState<FinancialPocket[]>([]);
   const [profile, setProfile] = useState<Profile>(JSON.parse(JSON.stringify(DEFAULT_USER_PROFILE)));
-  const [profileLoading, setProfileLoading] = useState(true);
-  const [leads, setLeads, leadsLoading] = useSupabaseData<Lead>(() => SupabaseService.getLeads());
-  const [rewardLedgerEntries, setRewardLedgerEntries, rewardLedgerEntriesLoading] = useSupabaseData<RewardLedgerEntry>(() => SupabaseService.getRewardLedgerEntries());
-  const [cards, setCards, cardsLoading] = useSupabaseData<Card>(() => SupabaseService.getCards());
-  const [assets, setAssets, assetsLoading] = useSupabaseData<Asset>(() => SupabaseService.getAssets());
-  const [contracts, setContracts, contractsLoading] = useSupabaseData<Contract>(() => SupabaseService.getContracts());
-  const [clientFeedback, setClientFeedback, clientFeedbackLoading] = useSupabaseData<ClientFeedback>(() => SupabaseService.getClientFeedback());
-  const [notifications, setNotifications, notificationsLoading] = useSupabaseData<Notification>(() => SupabaseService.getNotifications());
-  const [socialMediaPosts, setSocialMediaPosts, socialMediaPostsLoading] = useSupabaseData<SocialMediaPost>(() => SupabaseService.getSocialMediaPosts());
-  const [promoCodes, setPromoCodes, promoCodesLoading] = useSupabaseData<PromoCode>(() => SupabaseService.getPromoCodes());
-  const [sops, setSops, sopsLoading] = useSupabaseData<SOP>(() => SupabaseService.getSOPs());
-  const [packages, setPackages, packagesLoading] = useSupabaseData<Package>(() => SupabaseService.getPackages());
-  const [addOns, setAddOns, addOnsLoading] = useSupabaseData<AddOn>(() => SupabaseService.getAddOns());
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [rewardLedgerEntries, setRewardLedgerEntries] = useState<RewardLedgerEntry[]>([]);
+  const [cards, setCards] = useState<Card[]>([]);
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [clientFeedback, setClientFeedback] = useState<ClientFeedback[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [socialMediaPosts, setSocialMediaPosts] = useState<SocialMediaPost[]>([]);
+  const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
+  const [sops, setSops] = useState<SOP[]>([]);
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [addOns, setAddOns] = useState<AddOn[]>([]);
 
+  // Centralized data loading effect
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (currentUser) {
-        setProfileLoading(true);
-        try {
-          // Corrected call: getProfile takes no arguments
-          const userProfile = await SupabaseService.getProfile();
-          if (userProfile) {
-            setProfile(userProfile);
-          } else {
-            // Profile doesn't exist for this authenticated user, let's create it.
-            console.log("No profile found for user, creating one.");
-            const newProfileData: Omit<Profile, 'id'> = {
-              adminUserId: currentUser.id,
-              email: currentUser.email!,
-              fullName: currentUser.fullName || 'New User',
-              companyName: `${currentUser.fullName || 'New User'}'s Studio`,
-              // Fill with other default values from DEFAULT_USER_PROFILE
-              phone: '',
-              website: '',
-              address: '',
-              bankAccount: '',
-              authorizedSigner: currentUser.fullName || 'New User',
-              idNumber: '',
-              bio: '',
-              incomeCategories: DEFAULT_USER_PROFILE.incomeCategories,
-              expenseCategories: DEFAULT_USER_PROFILE.expenseCategories,
-              projectTypes: DEFAULT_USER_PROFILE.projectTypes,
-              eventTypes: DEFAULT_USER_PROFILE.eventTypes,
-              assetCategories: DEFAULT_USER_PROFILE.assetCategories,
-              sopCategories: DEFAULT_USER_PROFILE.sopCategories,
-              packageCategories: DEFAULT_USER_PROFILE.packageCategories,
-              projectStatusConfig: DEFAULT_USER_PROFILE.projectStatusConfig,
-              notificationSettings: DEFAULT_USER_PROFILE.notificationSettings,
-              securitySettings: DEFAULT_USER_PROFILE.securitySettings,
-              briefingTemplate: DEFAULT_USER_PROFILE.briefingTemplate,
-              termsAndConditions: DEFAULT_USER_PROFILE.termsAndConditions,
-              logoBase64: undefined,
-              brandColor: '#3b82f6',
-              publicPageConfig: DEFAULT_USER_PROFILE.publicPageConfig,
-              packageShareTemplate: DEFAULT_USER_PROFILE.packageShareTemplate,
-              bookingFormTemplate: DEFAULT_USER_PROFILE.bookingFormTemplate,
-              chatTemplates: DEFAULT_USER_PROFILE.chatTemplates,
-            };
-            const createdProfile = await SupabaseService.createProfile(newProfileData);
-            setProfile(createdProfile);
-          }
-        } catch (error) {
-            console.error("Error fetching or creating profile:", error);
-        } finally {
-            setProfileLoading(false);
+    const fetchAllData = async () => {
+      if (!currentUser) {
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        // First, get the profile. It's needed for other things.
+        let userProfile = await SupabaseService.getProfile();
+        if (!userProfile) {
+          console.log("No profile found for user, creating one.");
+          const newProfileData: Omit<Profile, 'id'> = {
+              adminUserId: currentUser.id, email: currentUser.email!,
+              fullName: currentUser.fullName || 'New User', companyName: `${currentUser.fullName || 'New User'}'s Studio`,
+              phone: '', website: '', address: '', bankAccount: '',
+              authorizedSigner: currentUser.fullName || 'New User', idNumber: '', bio: '',
+              ...DEFAULT_USER_PROFILE, // Spread defaults for the rest
+          };
+          userProfile = await SupabaseService.createProfile(newProfileData);
         }
-      } else {
-        // No user, so reset to default and stop loading.
-        setProfile(JSON.parse(JSON.stringify(DEFAULT_USER_PROFILE)));
-        setProfileLoading(false);
+        setProfile(userProfile);
+
+        // Now, fetch all other data in parallel.
+        const [
+          usersData, clientsData, projectsData, teamMembersData, transactionsData,
+          teamProjectPaymentsData, teamPaymentRecordsData, pocketsData, leadsData,
+          rewardLedgerEntriesData, cardsData, assetsData, contractsData,
+          clientFeedbackData, notificationsData, socialMediaPostsData,
+          promoCodesData, sopsData, packagesData, addOnsData
+        ] = await Promise.all([
+          SupabaseService.getUsers(), SupabaseService.getClients(), SupabaseService.getProjects(),
+          SupabaseService.getTeamMembers(), SupabaseService.getTransactions(),
+          SupabaseService.getTeamProjectPayments(), SupabaseService.getTeamPaymentRecords(),
+          SupabaseService.getFinancialPockets(), SupabaseService.getLeads(),
+          SupabaseService.getRewardLedgerEntries(), SupabaseService.getCards(),
+          SupabaseService.getAssets(), SupabaseService.getContracts(),
+          SupabaseService.getClientFeedback(), SupabaseService.getNotifications(),
+          SupabaseService.getSocialMediaPosts(), SupabaseService.getPromoCodes(),
+          SupabaseService.getSOPs(), SupabaseService.getPackages(), SupabaseService.getAddOns()
+        ]);
+
+        setUsers(usersData);
+        setClients(clientsData);
+        setProjects(projectsData);
+        setTeamMembers(teamMembersData);
+        setTransactions(transactionsData);
+        setTeamProjectPayments(teamProjectPaymentsData);
+        setTeamPaymentRecords(teamPaymentRecordsData);
+        setPockets(pocketsData);
+        setLeads(leadsData);
+        setRewardLedgerEntries(rewardLedgerEntriesData);
+        setCards(cardsData);
+        setAssets(assetsData);
+        setContracts(contractsData);
+        setClientFeedback(clientFeedbackData);
+        setNotifications(notificationsData);
+        setSocialMediaPosts(socialMediaPostsData);
+        setPromoCodes(promoCodesData);
+        setSops(sopsData);
+        setPackages(packagesData);
+        setAddOns(addOnsData);
+
+      } catch (error) {
+        console.error("Fatal Error: Could not load initial application data.", error);
+        showNotification("Gagal memuat data. Periksa koneksi dan coba lagi.");
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    // Only run fetchProfile if auth is no longer loading
     if (!authLoading) {
-      fetchProfile();
+      fetchAllData();
     }
   }, [currentUser, authLoading]);
-
-  // Check if any data is still loading
-  const isLoading = usersLoading || clientsLoading || projectsLoading || teamMembersLoading || 
-                   transactionsLoading || teamProjectPaymentsLoading || teamPaymentRecordsLoading || 
-                   pocketsLoading || profileLoading || leadsLoading || rewardLedgerEntriesLoading || 
-                   cardsLoading || assetsLoading || contractsLoading || clientFeedbackLoading || 
-                   notificationsLoading || socialMediaPostsLoading || promoCodesLoading || 
-                   sopsLoading || packagesLoading || addOnsLoading;
 
     // --- [NEW] MOCK EMAIL SERVICE ---
     const sendEmailNotification = (recipientEmail: string, notification: Notification) => {
