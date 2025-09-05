@@ -36,8 +36,8 @@ import SOPManagement from './components/SOP';
 import Homepage from './components/Homepage';
 
 // Hook for loading data from Supabase with local state management
-const useSupabaseData = <T,>(fetcher: () => Promise<T[]>, defaultValue: T[]): [T[], React.Dispatch<React.SetStateAction<T[]>>, boolean] => {
-    const [data, setData] = useState<T[]>(defaultValue);
+const useSupabaseData = <T,>(fetcher: () => Promise<T[]>): [T[], React.Dispatch<React.SetStateAction<T[]>>, boolean] => {
+    const [data, setData] = useState<T[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -48,14 +48,15 @@ const useSupabaseData = <T,>(fetcher: () => Promise<T[]>, defaultValue: T[]): [T
                 setData(result);
             } catch (error) {
                 console.error('Error loading data from Supabase:', error);
-                setData(defaultValue);
+                // On error, we now set an empty array instead of falling back to mock data.
+                setData([]);
             } finally {
                 setLoading(false);
             }
         };
 
         loadData();
-    }, []);
+    }, [fetcher]);
 
     return [data, setData, loading];
 };
@@ -70,9 +71,11 @@ const useSupabaseItem = <T,>(fetcher: () => Promise<T | null>, defaultValue: T):
             try {
                 setLoading(true);
                 const result = await fetcher();
+                // We still use defaultValue for single items if the fetch returns null
                 setData(result || defaultValue);
             } catch (error) {
                 console.error('Error loading item from Supabase:', error);
+                // On error, we fall back to the default value for single items (e.g., profile)
                 setData(defaultValue);
             } finally {
                 setLoading(false);
@@ -80,7 +83,7 @@ const useSupabaseItem = <T,>(fetcher: () => Promise<T | null>, defaultValue: T):
         };
 
         loadData();
-    }, []);
+    }, [fetcher, defaultValue]);
 
     return [data, setData, loading];
 };
@@ -294,28 +297,28 @@ const App: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // --- State Initialization with Supabase ---
-  const [users, setUsers, usersLoading] = useSupabaseData<User>(() => SupabaseService.getUsers(), JSON.parse(JSON.stringify(MOCK_USERS)));
+  const [users, setUsers, usersLoading] = useSupabaseData<User>(() => SupabaseService.getUsers());
   
-  const [clients, setClients, clientsLoading] = useSupabaseData<Client>(() => SupabaseService.getClients(), JSON.parse(JSON.stringify(MOCK_DATA.clients)));
-  const [projects, setProjects, projectsLoading] = useSupabaseData<Project>(() => SupabaseService.getProjects(), JSON.parse(JSON.stringify(MOCK_DATA.projects)));
-  const [teamMembers, setTeamMembers, teamMembersLoading] = useSupabaseData<TeamMember>(() => SupabaseService.getTeamMembers(), JSON.parse(JSON.stringify(MOCK_DATA.teamMembers)));
-  const [transactions, setTransactions, transactionsLoading] = useSupabaseData<Transaction>(() => SupabaseService.getTransactions(), JSON.parse(JSON.stringify(MOCK_DATA.transactions)));
-  const [teamProjectPayments, setTeamProjectPayments, teamProjectPaymentsLoading] = useSupabaseData<TeamProjectPayment>(() => SupabaseService.getTeamProjectPayments(), JSON.parse(JSON.stringify(MOCK_DATA.teamProjectPayments)));
-  const [teamPaymentRecords, setTeamPaymentRecords, teamPaymentRecordsLoading] = useSupabaseData<TeamPaymentRecord>(() => SupabaseService.getTeamPaymentRecords(), JSON.parse(JSON.stringify(MOCK_DATA.teamPaymentRecords)));
-  const [pockets, setPockets, pocketsLoading] = useSupabaseData<FinancialPocket>(() => SupabaseService.getFinancialPockets(), JSON.parse(JSON.stringify(MOCK_DATA.pockets)));
-  const [profile, setProfile, profileLoading] = useSupabaseItem<Profile>(() => SupabaseService.getProfile('550e8400-e29b-41d4-a716-446655440010'), JSON.parse(JSON.stringify(MOCK_DATA.profile)));
-  const [leads, setLeads, leadsLoading] = useSupabaseData<Lead>(() => SupabaseService.getLeads(), JSON.parse(JSON.stringify(MOCK_DATA.leads)));
-  const [rewardLedgerEntries, setRewardLedgerEntries, rewardLedgerEntriesLoading] = useSupabaseData<RewardLedgerEntry>(() => SupabaseService.getRewardLedgerEntries(), JSON.parse(JSON.stringify(MOCK_DATA.rewardLedgerEntries)));
-  const [cards, setCards, cardsLoading] = useSupabaseData<Card>(() => SupabaseService.getCards(), JSON.parse(JSON.stringify(MOCK_DATA.cards)));
-  const [assets, setAssets, assetsLoading] = useSupabaseData<Asset>(() => SupabaseService.getAssets(), JSON.parse(JSON.stringify(MOCK_DATA.assets)));
-  const [contracts, setContracts, contractsLoading] = useSupabaseData<Contract>(() => SupabaseService.getContracts(), JSON.parse(JSON.stringify(MOCK_DATA.contracts)));
-  const [clientFeedback, setClientFeedback, clientFeedbackLoading] = useSupabaseData<ClientFeedback>(() => SupabaseService.getClientFeedback(), JSON.parse(JSON.stringify(MOCK_DATA.clientFeedback)));
-  const [notifications, setNotifications, notificationsLoading] = useSupabaseData<Notification>(() => SupabaseService.getNotifications(), JSON.parse(JSON.stringify(MOCK_DATA.notifications)));
-  const [socialMediaPosts, setSocialMediaPosts, socialMediaPostsLoading] = useSupabaseData<SocialMediaPost>(() => SupabaseService.getSocialMediaPosts(), JSON.parse(JSON.stringify(MOCK_DATA.socialMediaPosts)));
-  const [promoCodes, setPromoCodes, promoCodesLoading] = useSupabaseData<PromoCode>(() => SupabaseService.getPromoCodes(), JSON.parse(JSON.stringify(MOCK_DATA.promoCodes)));
-  const [sops, setSops, sopsLoading] = useSupabaseData<SOP>(() => SupabaseService.getSOPs(), JSON.parse(JSON.stringify(MOCK_DATA.sops)));
-  const [packages, setPackages, packagesLoading] = useSupabaseData<Package>(() => SupabaseService.getPackages(), JSON.parse(JSON.stringify(MOCK_DATA.packages)));
-  const [addOns, setAddOns, addOnsLoading] = useSupabaseData<AddOn>(() => SupabaseService.getAddOns(), JSON.parse(JSON.stringify(MOCK_DATA.addOns)));
+  const [clients, setClients, clientsLoading] = useSupabaseData<Client>(() => SupabaseService.getClients());
+  const [projects, setProjects, projectsLoading] = useSupabaseData<Project>(() => SupabaseService.getProjects());
+  const [teamMembers, setTeamMembers, teamMembersLoading] = useSupabaseData<TeamMember>(() => SupabaseService.getTeamMembers());
+  const [transactions, setTransactions, transactionsLoading] = useSupabaseData<Transaction>(() => SupabaseService.getTransactions());
+  const [teamProjectPayments, setTeamProjectPayments, teamProjectPaymentsLoading] = useSupabaseData<TeamProjectPayment>(() => SupabaseService.getTeamProjectPayments());
+  const [teamPaymentRecords, setTeamPaymentRecords, teamPaymentRecordsLoading] = useSupabaseData<TeamPaymentRecord>(() => SupabaseService.getTeamPaymentRecords());
+  const [pockets, setPockets, pocketsLoading] = useSupabaseData<FinancialPocket>(() => SupabaseService.getFinancialPockets());
+  const [profile, setProfile, profileLoading] = useSupabaseItem<Profile>(() => SupabaseService.getProfile('550e8400-e29b-41d4-a716-446655440010'), JSON.parse(JSON.stringify(DEFAULT_USER_PROFILE)));
+  const [leads, setLeads, leadsLoading] = useSupabaseData<Lead>(() => SupabaseService.getLeads());
+  const [rewardLedgerEntries, setRewardLedgerEntries, rewardLedgerEntriesLoading] = useSupabaseData<RewardLedgerEntry>(() => SupabaseService.getRewardLedgerEntries());
+  const [cards, setCards, cardsLoading] = useSupabaseData<Card>(() => SupabaseService.getCards());
+  const [assets, setAssets, assetsLoading] = useSupabaseData<Asset>(() => SupabaseService.getAssets());
+  const [contracts, setContracts, contractsLoading] = useSupabaseData<Contract>(() => SupabaseService.getContracts());
+  const [clientFeedback, setClientFeedback, clientFeedbackLoading] = useSupabaseData<ClientFeedback>(() => SupabaseService.getClientFeedback());
+  const [notifications, setNotifications, notificationsLoading] = useSupabaseData<Notification>(() => SupabaseService.getNotifications());
+  const [socialMediaPosts, setSocialMediaPosts, socialMediaPostsLoading] = useSupabaseData<SocialMediaPost>(() => SupabaseService.getSocialMediaPosts());
+  const [promoCodes, setPromoCodes, promoCodesLoading] = useSupabaseData<PromoCode>(() => SupabaseService.getPromoCodes());
+  const [sops, setSops, sopsLoading] = useSupabaseData<SOP>(() => SupabaseService.getSOPs());
+  const [packages, setPackages, packagesLoading] = useSupabaseData<Package>(() => SupabaseService.getPackages());
+  const [addOns, setAddOns, addOnsLoading] = useSupabaseData<AddOn>(() => SupabaseService.getAddOns());
 
   // Check if any data is still loading
   const isLoading = usersLoading || clientsLoading || projectsLoading || teamMembersLoading || 
