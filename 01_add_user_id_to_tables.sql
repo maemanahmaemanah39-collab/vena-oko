@@ -95,8 +95,77 @@ BEGIN
         RAISE NOTICE 'Added user_id to transactions';
     END IF;
 
-    -- ... continue this pattern for all other necessary tables ...
-    -- leads, team_project_payments, assets, contracts, client_feedback, notifications, social_media_posts, promo_codes, sops
+    -- Table: leads
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='leads' AND column_name='user_id') THEN
+        ALTER TABLE public.leads ADD COLUMN user_id UUID;
+        UPDATE public.leads SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.leads ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to leads';
+    END IF;
+
+    -- Table: team_project_payments
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='team_project_payments' AND column_name='user_id') THEN
+        ALTER TABLE public.team_project_payments ADD COLUMN user_id UUID;
+        UPDATE public.team_project_payments SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.team_project_payments ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to team_project_payments';
+    END IF;
+
+    -- Table: assets
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='assets' AND column_name='user_id') THEN
+        ALTER TABLE public.assets ADD COLUMN user_id UUID;
+        UPDATE public.assets SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.assets ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to assets';
+    END IF;
+
+    -- Table: contracts
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='contracts' AND column_name='user_id') THEN
+        ALTER TABLE public.contracts ADD COLUMN user_id UUID;
+        UPDATE public.contracts SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.contracts ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to contracts';
+    END IF;
+
+    -- Table: client_feedback
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='client_feedback' AND column_name='user_id') THEN
+        ALTER TABLE public.client_feedback ADD COLUMN user_id UUID;
+        UPDATE public.client_feedback SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.client_feedback ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to client_feedback';
+    END IF;
+
+    -- Table: notifications
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='notifications' AND column_name='user_id') THEN
+        ALTER TABLE public.notifications ADD COLUMN user_id UUID;
+        UPDATE public.notifications SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.notifications ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to notifications';
+    END IF;
+
+    -- Table: social_media_posts
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='social_media_posts' AND column_name='user_id') THEN
+        ALTER TABLE public.social_media_posts ADD COLUMN user_id UUID;
+        UPDATE public.social_media_posts SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.social_media_posts ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to social_media_posts';
+    END IF;
+
+    -- Table: promo_codes
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='promo_codes' AND column_name='user_id') THEN
+        ALTER TABLE public.promo_codes ADD COLUMN user_id UUID;
+        UPDATE public.promo_codes SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.promo_codes ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to promo_codes';
+    END IF;
+
+    -- Table: sops
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='sops' AND column_name='user_id') THEN
+        ALTER TABLE public.sops ADD COLUMN user_id UUID;
+        UPDATE public.sops SET user_id = admin_user_id_to_backfill WHERE user_id IS NULL;
+        ALTER TABLE public.sops ADD CONSTRAINT fk_user_id FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+        RAISE NOTICE 'Added user_id to sops';
+    END IF;
 
 END $$;
 

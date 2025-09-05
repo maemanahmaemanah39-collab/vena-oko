@@ -133,13 +133,44 @@ class SupabaseService {
     return session
   }
 
-  static async getCurrentUser() {
-    const session = await this.getCurrentSession()
-    if (session?.user) {
-      const users = await this.getUsers()
-      return users.find(u => u.id === session.user.id) || null
+  static async getCurrentUser(): Promise<User | null> {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.error('Error getting session:', sessionError);
+      return null;
     }
-    return null
+    if (session?.user) {
+      try {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (userError) {
+          // It's possible the user exists in auth but not in our public.users table yet
+          console.warn('User record not found in public.users table:', userError);
+          return null;
+        }
+
+        if (userData) {
+           return {
+            id: userData.id,
+            email: userData.email,
+            password: '',
+            fullName: userData.full_name,
+            companyName: userData.company_name,
+            role: userData.role,
+            permissions: userData.permissions,
+            isApproved: userData.is_approved
+          };
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        return null;
+      }
+    }
+    return null;
   }
 
   static onAuthStateChange(callback: (event: string, session: Session | null) => void) {
@@ -223,9 +254,17 @@ class SupabaseService {
     return data?.map(this.mapProfileFromDB) || []
   }
 
-  static async getProfile(id: string): Promise<Profile | null> {
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
-    if (error && error.code !== 'PGRST116') throw error
+  static async getProfile(): Promise<Profile | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('admin_user_id', user.id)
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw error // 'PGRST116' means no rows found, which is not an error here
     return data ? this.mapProfileFromDB(data) : null
   }
 

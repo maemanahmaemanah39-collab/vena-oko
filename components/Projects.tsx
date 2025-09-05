@@ -1416,48 +1416,71 @@ export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, clien
             if (!originalProject) return; 
             projectData = { ...originalProject, ...formData };
             
-            const paymentCardId = cards.find(c => c.id !== 'CARD_CASH')?.id;
-            if (!paymentCardId) {
-                showNotification("Tidak ada kartu pembayaran untuk mencatat pengeluaran.");
-            } else {
-                let tempTransactions = [...transactions];
-                let tempCards = [...cards];
-                const fieldsToProcess: ('printingCost' | 'transportCost')[] = [];
+            const handleCostChange = async (
+                costType: 'printingCost' | 'transportCost',
+                newCost: number,
+                oldCost: number
+            ) => {
+                const paymentCardId = cards.find(c => c.id !== 'CARD_CASH')?.id;
+                if (!paymentCardId) {
+                    showNotification("Tidak ada kartu pembayaran untuk mencatat pengeluaran.");
+                    return;
+                }
 
-                if (originalProject.printingCost !== projectData.printingCost) fieldsToProcess.push('printingCost');
-                if (originalProject.transportCost !== projectData.transportCost) fieldsToProcess.push('transportCost');
+                const category = costType === 'printingCost' ? 'Cetak Album' : 'Transportasi';
+                const description = costType === 'printingCost' ? `Biaya Cetak - ${projectData.projectName}` : `Biaya Transportasi - ${projectData.projectName}`;
 
-                fieldsToProcess.forEach(field => {
-                    const cost = projectData[field] || 0;
-                    const category = field === 'printingCost' ? 'Cetak Album' : 'Transportasi';
-                    const description = field === 'printingCost' ? `Biaya Cetak - ${projectData.projectName}` : `Biaya Transportasi - ${projectData.projectName}`;
-                    const txId = `TRN-COST-${field.replace('Cost','')}-${projectData.id}`;
-                    
-                    const existingTxIndex = tempTransactions.findIndex(t => t.id === txId);
+                // Find existing transaction by projectId and category, which should be unique for this type of cost.
+                const existingTx = transactions.find(t => t.projectId === projectData.id && t.category === category);
 
-                    if (existingTxIndex > -1) {
-                        const oldAmount = tempTransactions[existingTxIndex].amount;
-                        if (cost > 0) {
-                            tempTransactions[existingTxIndex].amount = cost;
-                            const diff = cost - oldAmount;
-                            tempCards = tempCards.map(c => c.id === paymentCardId ? { ...c, balance: c.balance - diff } : c);
-                        } else {
-                            tempTransactions.splice(existingTxIndex, 1);
-                            tempCards = tempCards.map(c => c.id === paymentCardId ? { ...c, balance: c.balance + oldAmount } : c);
+                if (newCost > 0) {
+                    if (existingTx) {
+                        // Update existing transaction if amount differs
+                        if (existingTx.amount !== newCost) {
+                            const updatedTx = await SupabaseService.updateTransaction(existingTx.id, { amount: newCost });
+                            setTransactions(prev => prev.map(t => t.id === existingTx.id ? updatedTx : t));
+
+                            const diff = newCost - oldAmount;
+                            const card = cards.find(c => c.id === paymentCardId);
+                            if (card) {
+                                const updatedCard = await SupabaseService.updateCard(paymentCardId, { balance: card.balance - diff });
+                                setCards(prev => prev.map(c => c.id === paymentCardId ? updatedCard : c));
+                            }
                         }
-                    } else if (cost > 0) {
-                        const newTx: Transaction = {
-                            id: txId, date: new Date().toISOString().split('T')[0], description, amount: cost,
+                    } else {
+                        // Create new transaction
+                        const newTxData: Omit<Transaction, 'id'> = {
+                            date: new Date().toISOString().split('T')[0], description, amount: newCost,
                             type: TransactionType.EXPENSE, projectId: projectData.id, category,
                             method: 'Sistem', cardId: paymentCardId,
                         };
-                        tempTransactions.push(newTx);
-                        tempCards = tempCards.map(c => c.id === paymentCardId ? { ...c, balance: c.balance - cost } : c);
-                    }
-                });
+                        const createdTx = await SupabaseService.createTransaction(newTxData);
+                        setTransactions(prev => [...prev, createdTx]);
 
-                setTransactions(tempTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-                setCards(tempCards);
+                        const card = cards.find(c => c.id === paymentCardId);
+                        if (card) {
+                             const updatedCard = await SupabaseService.updateCard(paymentCardId, { balance: card.balance - newCost });
+                             setCards(prev => prev.map(c => c.id === paymentCardId ? updatedCard : c));
+                        }
+                    }
+                } else if (existingTx) {
+                    // Delete transaction if cost is set to 0
+                    await SupabaseService.deleteTransaction(existingTx.id);
+                    setTransactions(prev => prev.filter(t => t.id !== existingTx.id));
+
+                    const card = cards.find(c => c.id === paymentCardId);
+                    if (card) {
+                        const updatedCard = await SupabaseService.updateCard(paymentCardId, { balance: card.balance + oldCost });
+                        setCards(prev => prev.map(c => c.id === paymentCardId ? updatedCard : c));
+                    }
+                }
+            };
+
+            if (originalProject.printingCost !== projectData.printingCost) {
+                await handleCostChange('printingCost', projectData.printingCost || 0, originalProject.printingCost || 0);
+            }
+            if (originalProject.transportCost !== projectData.transportCost) {
+                await handleCostChange('transportCost', projectData.transportCost || 0, originalProject.transportCost || 0);
             }
         }
         
@@ -1635,12 +1658,34 @@ export const Projects: React.FC<ProjectsProps> = ({ projects, setProjects, clien
         const projectToUpdate = projects.find(p => p.id === projectId);
 
         if (projectToUpdate && projectToUpdate.status !== newStatus) {
+            const updatedProjectData = {
+                status: newStatus,
+                progress: getProgressForStatus(newStatus, profile.projectStatusConfig),
+                activeSubStatuses: []
+            };
+
+            // Optimistically update UI
             setProjects(prevProjects =>
                 prevProjects.map(p =>
-                    p.id === projectId ? { ...p, status: newStatus, progress: getProgressForStatus(newStatus, profile.projectStatusConfig), activeSubStatuses: [] } : p
+                    p.id === projectId ? { ...p, ...updatedProjectData } : p
                 )
             );
-            showNotification(`Status "${projectToUpdate.projectName}" diubah ke "${newStatus}"`);
+
+            // Persist to Supabase
+            SupabaseService.updateProject(projectId, updatedProjectData)
+                .then(() => {
+                    showNotification(`Status "${projectToUpdate.projectName}" diubah ke "${newStatus}"`);
+                })
+                .catch(error => {
+                    console.error("Failed to update project status:", error);
+                    showNotification("Gagal memperbarui status proyek.");
+                    // Revert UI on error
+                    setProjects(prevProjects =>
+                        prevProjects.map(p =>
+                            p.id === projectId ? projectToUpdate : p
+                        )
+                    );
+                });
         }
         setDraggedProjectId(null);
     };

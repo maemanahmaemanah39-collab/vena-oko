@@ -709,55 +709,69 @@ const Finance: React.FC<FinanceProps> = ({ transactions, setTransactions, pocket
                     };
                 }
 
-                let newTransactions = [...transactions];
-                if (initialBalance > 0) {
-                    const initialTx: Transaction = {
-                        id: `TRN-INIT-${newCard.id}`,
-                        date: new Date().toISOString().split('T')[0],
-                        description: `Saldo Awal - ${newCard.bankName} ${newCard.cardType !== CardType.TUNAI ? newCard.lastFourDigits : ''}`.trim(),
-                        amount: initialBalance,
-                        type: TransactionType.INCOME,
-                        category: 'Modal',
-                        method: 'Sistem',
-                        cardId: newCard.id,
-                    };
-                    newTransactions.push(initialTx);
+                try {
+                    const createdCard = await SupabaseService.createCard(newCard);
+                    setCards(prev => [...prev, createdCard]);
+
+                    if (initialBalance > 0) {
+                        const initialTxData: Omit<Transaction, 'id'> = {
+                            date: new Date().toISOString().split('T')[0],
+                            description: `Saldo Awal - ${createdCard.bankName} ${createdCard.cardType !== CardType.TUNAI ? createdCard.lastFourDigits : ''}`.trim(),
+                            amount: initialBalance,
+                            type: TransactionType.INCOME,
+                            category: 'Modal',
+                            method: 'Sistem',
+                            cardId: createdCard.id,
+                        };
+                        const createdTransaction = await SupabaseService.createTransaction(initialTxData);
+                        setTransactions(prev => [...prev, createdTransaction].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                    }
+                    showNotification(`Akun baru "${createdCard.cardHolderName}" ditambahkan.`);
+                } catch (error) {
+                    console.error("Failed to create card:", error);
+                    showNotification("Gagal membuat akun baru.");
                 }
-                setCards(prev => [...prev, newCard]);
-                setTransactions(newTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-                showNotification(`Akun baru "${newCard.cardHolderName}" ditambahkan.`);
             } else { // Edit mode
                 const adjustmentAmount = Number(form.adjustmentAmount) || 0;
                 let updatedCards = [...cards];
                 let newTransactions = [...transactions];
     
-                // 1. Update card details (excluding balance)
-                const { balance, ...cardDetails } = form;
-                updatedCards = updatedCards.map(c => c.id === data.id ? { ...c, ...cardDetails } : c);
-                
-                // 2. Handle balance adjustment if any
-                if (adjustmentAmount !== 0) {
-                    const adjTx: Transaction = {
-                        id: `TRN-ADJ-${data.id}-${Date.now()}`,
-                        date: new Date().toISOString().split('T')[0],
-                        description: `Penyesuaian Saldo: ${form.adjustmentReason || (adjustmentAmount > 0 ? 'Penambahan' : 'Pengurangan')}`,
-                        amount: Math.abs(adjustmentAmount),
-                        type: adjustmentAmount > 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
-                        category: adjustmentAmount > 0 ? 'Modal' : 'Operasional Kantor',
-                        method: 'Sistem',
-                        cardId: data.id,
-                    };
-                    newTransactions.push(adjTx);
+                try {
+                    // 1. Update card details (excluding balance)
+                    const { balance, initialBalance, adjustmentAmount, adjustmentReason, ...cardDetails } = form;
+                    const updatedCardDetails = await SupabaseService.updateCard(data.id, cardDetails);
+                    let updatedCards = cards.map(c => c.id === data.id ? { ...c, ...updatedCardDetails } : c);
                     
-                    updatedCards = updatedCards.map(c => c.id === data.id ? { ...c, balance: c.balance + adjustmentAmount } : c);
-    
-                    showNotification(`Saldo akun "${data.cardHolderName}" disesuaikan.`);
-                } else {
-                     showNotification(`Detail akun "${data.cardHolderName}" diperbarui.`);
+                    // 2. Handle balance adjustment if any
+                    const adjAmount = Number(form.adjustmentAmount) || 0;
+                    if (adjAmount !== 0) {
+                        const adjTxData: Omit<Transaction, 'id'> = {
+                            date: new Date().toISOString().split('T')[0],
+                            description: `Penyesuaian Saldo: ${form.adjustmentReason || (adjAmount > 0 ? 'Penambahan' : 'Pengurangan')}`,
+                            amount: Math.abs(adjAmount),
+                            type: adjAmount > 0 ? TransactionType.INCOME : TransactionType.EXPENSE,
+                            category: adjAmount > 0 ? 'Modal' : 'Operasional Kantor',
+                            method: 'Sistem',
+                            cardId: data.id,
+                        };
+                        const createdTransaction = await SupabaseService.createTransaction(adjTxData);
+                        setTransactions(prev => [...prev, createdTransaction].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+
+                        const newBalance = data.balance + adjAmount;
+                        const finalUpdatedCard = await SupabaseService.updateCard(data.id, { balance: newBalance });
+                        updatedCards = updatedCards.map(c => c.id === data.id ? finalUpdatedCard : c);
+
+                        showNotification(`Saldo akun "${data.cardHolderName}" disesuaikan.`);
+                    } else {
+                         showNotification(`Detail akun "${data.cardHolderName}" diperbarui.`);
+                    }
+
+                    setCards(updatedCards);
+
+                } catch (error) {
+                    console.error("Failed to update card:", error);
+                    showNotification("Gagal memperbarui akun.");
                 }
-    
-                setCards(updatedCards);
-                setTransactions(newTransactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
             }
         }
         if (type === 'pocket') {
@@ -781,82 +795,116 @@ const Finance: React.FC<FinanceProps> = ({ transactions, setTransactions, pocket
                 return;
             }
             
-            // This logic ensures a true transfer of funds: one account is debited, the other is credited.
-            if (isDeposit) {
-                // Moving from Card to Pocket
-                if (card.balance < amount) {
-                    alert(`Saldo kartu ${card.bankName} tidak mencukupi.`);
-                    return;
+            try {
+                if (isDeposit) {
+                    // Moving from Card to Pocket
+                    if (card.balance < amount) {
+                        alert(`Saldo kartu ${card.bankName} tidak mencukupi.`);
+                        return;
+                    }
+                    const updatedCard = await SupabaseService.updateCard(card.id, { balance: card.balance - amount });
+                    const updatedPocket = await SupabaseService.updatePocket(pocket.id, { amount: pocket.amount + amount, sourceCardId: card.id });
+                    setCards(prev => prev.map(c => c.id === card.id ? updatedCard : c));
+                    setPockets(prev => prev.map(p => p.id === pocket.id ? updatedPocket : p));
+                } else { // Withdraw
+                    // Moving from Pocket to Card
+                    if (pocket.amount < amount) {
+                        alert(`Saldo kantong ${pocket.name} tidak mencukupi.`);
+                        return;
+                    }
+                    const updatedPocket = await SupabaseService.updatePocket(pocket.id, { amount: pocket.amount - amount });
+                    const updatedCard = await SupabaseService.updateCard(card.id, { balance: card.balance + amount });
+                    setPockets(prev => prev.map(p => p.id === pocket.id ? updatedPocket : p));
+                    setCards(prev => prev.map(c => c.id === card.id ? updatedCard : c));
                 }
-                setCards(prevCards => prevCards.map(c => 
-                    c.id === card.id ? { ...c, balance: c.balance - amount } : c
-                ));
-                setPockets(prevPockets => prevPockets.map(p => 
-                    p.id === pocket.id ? { ...p, amount: p.amount + amount, sourceCardId: card.id } : p
-                ));
-            } else { // Withdraw
-                // Moving from Pocket to Card
-                if (pocket.amount < amount) {
-                    alert(`Saldo kantong ${pocket.name} tidak mencukupi.`);
-                    return;
-                }
-                setPockets(prevPockets => prevPockets.map(p => 
-                    p.id === pocket.id ? { ...p, amount: p.amount - amount } : p
-                ));
-                setCards(prevCards => prevCards.map(c => 
-                    c.id === card.id ? { ...c, balance: c.balance + amount } : c
-                ));
+
+                // Record the internal transfer transaction
+                const transferTxData: Omit<Transaction, 'id'> = {
+                    date: new Date().toISOString().split('T')[0],
+                    amount,
+                    description: `${isDeposit ? 'Setor ke' : 'Tarik dari'} ${pocket.name} dari/ke ${card.bankName}`,
+                    type: TransactionType.EXPENSE,
+                    category: 'Transfer Internal',
+                    method: 'Sistem',
+                    cardId: card.id,
+                    pocketId: pocket.id,
+                };
+                const createdTransaction = await SupabaseService.createTransaction(transferTxData);
+                setTransactions(prev => [createdTransaction, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                showNotification(`Transfer sebesar ${formatCurrency(amount)} berhasil.`);
+            } catch (error) {
+                console.error("Transfer failed:", error);
+                showNotification("Gagal melakukan transfer. Saldo mungkin tidak sinkron, harap muat ulang halaman.");
             }
-            
-            // Record the internal transfer transaction
-            const transferTx: Transaction = {
-                id: `TRN-TFR-${Date.now()}`,
-                date: new Date().toISOString().split('T')[0],
-                amount,
-                description: `${isDeposit ? 'Setor ke' : 'Tarik dari'} ${pocket.name} dari/ke ${card.bankName}`,
-                type: TransactionType.EXPENSE, // Treat as expense for cash flow purposes, but it's a balanced internal move.
-                category: 'Transfer Internal',
-                method: 'Sistem',
-                cardId: card.id,
-                pocketId: pocket.id,
-            };
-            setTransactions(prev => [transferTx, ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         }
          if (type === 'topup-cash') {
             const amount = Number(form.amount);
             if (!amount || amount <= 0) { alert("Jumlah tidak valid."); return; }
             const sourceCard = cards.find(c => c.id === form.fromCardId);
-            if (!sourceCard) { alert("Kartu sumber tidak valid."); return; }
+            const cashCard = cards.find(c => c.cardType === CardType.TUNAI);
+
+            if (!sourceCard || !cashCard) { alert("Kartu sumber atau kartu tunai tidak ditemukan."); return; }
             if (sourceCard.balance < amount) { alert(`Saldo kartu ${sourceCard.bankName} tidak mencukupi.`); return; }
             
-            setCards(prev => prev.map(c => {
-                if (c.id === form.fromCardId) return {...c, balance: c.balance - amount };
-                if (c.cardType === CardType.TUNAI) return {...c, balance: c.balance + amount };
-                return c;
-            }));
+            try {
+                const updatedSourceCard = await SupabaseService.updateCard(sourceCard.id, { balance: sourceCard.balance - amount });
+                const updatedCashCard = await SupabaseService.updateCard(cashCard.id, { balance: cashCard.balance + amount });
 
-            const topupTx: Transaction = {
-                id: `TRN-TUC-${Date.now()}`, date: new Date().toISOString().split('T')[0],
-                description: `Top-up saldo tunai dari ${sourceCard.bankName}`, amount,
-                type: TransactionType.EXPENSE, category: 'Transfer Internal', method: 'Sistem', cardId: sourceCard.id
-            };
-            setTransactions(prev => [topupTx, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                setCards(prev => prev.map(c => {
+                    if (c.id === sourceCard.id) return updatedSourceCard;
+                    if (c.id === cashCard.id) return updatedCashCard;
+                    return c;
+                }));
+
+                const topupTxData: Omit<Transaction, 'id'> = {
+                    date: new Date().toISOString().split('T')[0],
+                    description: `Top-up saldo tunai dari ${sourceCard.bankName}`, amount,
+                    type: TransactionType.EXPENSE, category: 'Transfer Internal', method: 'Sistem', cardId: sourceCard.id
+                };
+                const createdTransaction = await SupabaseService.createTransaction(topupTxData);
+                setTransactions(prev => [createdTransaction, ...prev].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+                showNotification(`Top-up tunai sebesar ${formatCurrency(amount)} berhasil.`);
+            } catch (error) {
+                console.error("Top-up failed:", error);
+                showNotification("Gagal melakukan top-up. Saldo mungkin tidak sinkron, harap muat ulang halaman.");
+            }
         }
         handleCloseModal();
     };
 
-    const handleDelete = (type: 'transaction' | 'pocket' | 'card', id: string) => {
-        if (type === 'card') {
-            const isUsed = transactions.some(t => t.cardId === id) || pockets.some(p => p.sourceCardId === id);
-            if (isUsed) {
-                showNotification('Kartu tidak dapat dihapus karena sudah terhubung dengan transaksi atau kantong.');
-                return;
+    const handleDelete = async (type: 'transaction' | 'pocket' | 'card', id: string) => {
+        if (!window.confirm("Yakin ingin menghapus item ini? Aksi ini tidak dapat dibatalkan.")) return;
+
+        try {
+            if (type === 'transaction') {
+                await SupabaseService.deleteTransaction(id);
+                setTransactions(p => p.filter(i => i.id !== id));
+                showNotification('Transaksi berhasil dihapus.');
             }
+            if (type === 'pocket') {
+                const pocketToDelete = pockets.find(p => p.id === id);
+                if (pocketToDelete && pocketToDelete.amount > 0) {
+                    showNotification('Kantong tidak dapat dihapus karena masih memiliki saldo.');
+                    return;
+                }
+                await SupabaseService.deleteFinancialPocket(id);
+                setPockets(p => p.filter(i => i.id !== id));
+                showNotification('Kantong berhasil dihapus.');
+            }
+            if (type === 'card') {
+                const isUsed = transactions.some(t => t.cardId === id);
+                if (isUsed) {
+                    showNotification('Kartu tidak dapat dihapus karena sudah memiliki riwayat transaksi.');
+                    return;
+                }
+                await SupabaseService.deleteCard(id);
+                setCards(p => p.filter(i => i.id !== id));
+                showNotification('Kartu berhasil dihapus.');
+            }
+        } catch (error) {
+            console.error(`Failed to delete ${type}:`, error);
+            showNotification(`Gagal menghapus ${type}.`);
         }
-        if (!window.confirm("Yakin ingin menghapus item ini? Transaksi terkait tidak akan dihapus.")) return;
-        if (type === 'transaction') setTransactions(p => p.filter(i => i.id !== id));
-        if (type === 'pocket') setPockets(p => p.filter(i => i.id !== id));
-        if (type === 'card') setCards(p => p.filter(i => i.id !== id));
     };
 
     const handleTutupAnggaran = () => {

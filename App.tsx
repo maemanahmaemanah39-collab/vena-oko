@@ -306,7 +306,7 @@ const App: React.FC = () => {
   const [teamProjectPayments, setTeamProjectPayments, teamProjectPaymentsLoading] = useSupabaseData<TeamProjectPayment>(() => SupabaseService.getTeamProjectPayments());
   const [teamPaymentRecords, setTeamPaymentRecords, teamPaymentRecordsLoading] = useSupabaseData<TeamPaymentRecord>(() => SupabaseService.getTeamPaymentRecords());
   const [pockets, setPockets, pocketsLoading] = useSupabaseData<FinancialPocket>(() => SupabaseService.getFinancialPockets());
-  const [profile, setProfile, profileLoading] = useSupabaseItem<Profile>(() => SupabaseService.getProfile('550e8400-e29b-41d4-a716-446655440010'), JSON.parse(JSON.stringify(DEFAULT_USER_PROFILE)));
+  const [profile, setProfile, profileLoading] = useSupabaseItem<Profile>(() => SupabaseService.getProfile(), JSON.parse(JSON.stringify(DEFAULT_USER_PROFILE)));
   const [leads, setLeads, leadsLoading] = useSupabaseData<Lead>(() => SupabaseService.getLeads());
   const [rewardLedgerEntries, setRewardLedgerEntries, rewardLedgerEntriesLoading] = useSupabaseData<RewardLedgerEntry>(() => SupabaseService.getRewardLedgerEntries());
   const [cards, setCards, cardsLoading] = useSupabaseData<Card>(() => SupabaseService.getCards());
